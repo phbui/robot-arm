@@ -1,21 +1,93 @@
 import math
 import json
 
+# Map characters to their step patterns
+char_steps = {
+        'A': [(0, 0, False), (1, 2, True), (2, 0, True), (0.5, 1, False)],
+        'B': [(0, 0, False), (0, 2, True), (1, 1, True)],
+        'C': [(2, 2, False), (0, -2, True)],
+        'D': [(0, 0, False), (0, -2, True), (1, 0, True)],
+        'E': [(0, 0, False), (1, 0, True), (0, -1, True), (1, -2, False)],
+        'F': [(0, 0, False), (1, 0, True), (0, -1, True)],
+        'G': [(2, 2, False), (0, -2, True), (1, -1, True)],
+        'H': [(0, 0, False), (0, -2, True), (0.5, -1, True)],
+        'I': [(0.5, 0, False), (0.5, -2, True)],
+        'J': [(0.5, 0, False), (0.5, -1, True), (-0.5, -2, True)],
+        'K': [(0, 0, False), (1, -1, True), (1, 1, True)],
+        'L': [(0, 0, False), (0, -2, True), (1, -2, True)],
+        'M': [(0, 0, False), (1, 2, True), (2, 0, True)],
+        'N': [(0, 0, False), (1, 2, True), (1, 0, True)],
+        'O': [(0, 0, False), (1, 1, True), (-1, -1, True)],
+        'P': [(0, 0, False), (0, 2, True), (1, 1, True)],
+        'Q': [(0, 0, False), (1, 1, True), (1.5, -1.5, True)],
+        'R': [(0, 0, False), (0, 2, True), (1, 1, True), (1, 0, True)],
+        'S': [(1, 0, False), (0, -1, True), (-1, 1, True)],
+        'T': [(0.5, 2, False), (0.5, 0, True), (0, 2, False)],
+        'U': [(0.5, 2, False), (0.5, 0, True), (1, 1, True)],
+        'V': [(0, 2, False), (1, 0, True), (2, 2, True)],
+        'W': [(0, 2, False), (1, 0, True), (2, 2, True)],
+        'X': [(0, 2, False), (1, 0, True), (0, 2, True)],
+        'Y': [(1, 2, False), (1, 0, True)],
+        'Z': [(0, 2, False), (1, 0, True), (0, 0, False)],
+
+        # Numbers (0-9)
+        '0': [(0, 0, False), (1, -1, True), (-1, 1, True)],
+        '1': [(1, 0, False), (0, 2, True)],
+        '2': [(0, 0, False), (1, 0, True), (1, -1, True)],
+        '3': [(0, 0, False), (1, -1, True), (0.5, 0, True)],
+        '4': [(1, 0, False), (1, -2, True), (0.5, -1, True)],
+        '5': [(1, 2, False), (1, 0, True), (1, -1, True)],
+        '6': [(1, 2, False), (1, 0, True), (1, 2, True)],
+        '7': [(1, 2, False), (0, 0, True)],
+        '8': [(0, 0, False), (1, 2, True), (0, -2, True)],
+        '9': [(1, 2, False), (1, 0, True)],
+
+        # Special Symbols
+        '!': [(0, 0, False), (0, -2, True), (0, -2.2, True)],
+        '@': [(1, 0, False), (1, 1, True)],
+        '#': [(0, 1, False), (0, -2, True), (0.5, 0.5, True), (0.5, -0.5, True)],
+        '$': [(0, 1, False), (0, -1, True)],
+        '%': [(0, 1, False), (0.5, 1, True)],
+        '^': [(1, 0, False), (0, 2, True)],
+        '&': [(0, 2, False), (1, -1, True)],
+        '*': [(0, 1, False), (1, -1, True)],
+        '(': [(1, 2, False), (-1, -1, True)],
+        ')': [(-1, 2, False), (1, -1, True)],
+        '-': [(0, -1, False), (1, -1, True)],
+        '_': [(0, -1, False), (1, -1, True)],
+        '+': [(0.5, 0, False), (0.5, -1, True), (0, -0.5, True)],
+        '{': [(1, 2, False), (0, -1, True)],
+        '}': [(-1, 2, False), (1, -1, True)],
+        '[': [(1, 2, False), (0, -2, True)],
+        ']': [(1, 2, False), (0, -2, True)],
+        ':': [(0.5, 1, False), (0.5, -1, True)],
+        ';': [(0.5, 1, False), (0.5, -1, True), (0.2, -1.2, True)],
+        '<': [(1, 1, False), (0, 0, True)],
+        '>': [(0, 1, False), (1, 0, True)],
+        ',': [(0.5, 0, False), (0.5, -0.5, True), (0.2, -1, True)],
+        '.': [(0.5, 0, False), (0.2, -1, True)],
+        '?': [(0, 2, False), (1, 1, True), (0.2, -1, True)],
+        '/': [(1, 2, False), (0, -1, True)]
+}
+
 # Function to calculate angles based on the arm's lengths and offsets
-def calculate_angles(L1x, L1y, L2x, L2y, O1, O2):
-    # Link lengths
+def calculate_angles(L1x, L1y, L2x, L2y):
+    
+    # Link lengths (hypotenuses)
     L1z = math.sqrt(L1x**2 + L1y**2)
     L2z = math.sqrt(L2x**2 + L2y**2)
 
-    # Θ1: Base Rotation Angle
-    theta1 = math.atan2(L2z, L1z) + O1
+    # Θ1: Base Rotation Angle (angle between the end effector and the horizontal axis)
+    theta1 = math.atan2(L1y + L2y, L1x + L2x)  # Total displacement
 
-    # r: Distance between the two links
-    r = math.sqrt(L1z**2 + L2z**2)
+    # Distance from base to end effector (resultant length)
+    r = math.sqrt((L1x + L2x)**2 + (L1y + L2y)**2)
 
-    # Θ2: Arm Tilt Angle
+    # Θ2: Internal angle between the two links (law of cosines)
     cos_theta2 = (L1z**2 + L2z**2 - r**2) / (2 * L1z * L2z)
-    theta2 = math.acos(cos_theta2) + O2
+    
+    # Adding the small offset for L2's orientation (for the slight offset you mentioned)
+    theta2 = math.acos(cos_theta2) + math.atan2(L2y, L2x)
 
     # Return the angles in degrees for easier interpretation
     return {
@@ -24,348 +96,47 @@ def calculate_angles(L1x, L1y, L2x, L2y, O1, O2):
     }
 
 # Define the kinematics for each character
-def generate_angles_for_character(char, L1x, L1y, L2x, L2y, O1, O2):
-    angle_steps = {}
+def generate_angles_for_character(char, L1x, L1y, L2x, L2y):
+    steps = []  # List to store steps
+
+    # Helper function to add a step with x, y coordinates and pen status
+    def add_step(x, y, pen_down):
+        step = {
+            "theta1": calculate_angles(L1x + x, L1y + y, L2x, L2y)["theta1"],
+            "theta2": calculate_angles(L1x + x, L1y + y, L2x, L2y)["theta2"],
+            "pen": pen_down  # Whether the pen is up or down
+        }
+        steps.append(step)
 
     char = char.upper()
 
-    # Uppercase Letters (A-Z)
-    if char == 'A':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up_right'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down_right'] = calculate_angles(L1x + 2, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 0.5, L1y + 1, L2x, L2y, O1, O2)
-    
-    elif char == 'B':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == 'C':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 2, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_curve_down_left'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == 'D':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['curve_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-    elif char == 'E':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_across_top'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down_middle'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_across_bottom'] = calculate_angles(L1x + 1, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == 'F':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_across_top'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down_middle'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == 'G':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 2, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_curve_down_left'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == 'H':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_across_middle'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == 'I':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == 'J':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_curve_left'] = calculate_angles(L1x - 0.5, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == 'K':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_left'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_left'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == 'L':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_right'] = calculate_angles(L1x + 1, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == 'M':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_right'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 2, L1y, L2x, L2y, O1, O2)
-
-    elif char == 'N':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_right'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-    elif char == 'O':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_curve_left'] = calculate_angles(L1x - 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == 'P':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == 'Q':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down'] = calculate_angles(L1x + 1.5, L1y - 1.5, L2x, L2y, O1, O2)
-
-    elif char == 'R':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-    elif char == 'S':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_curve_down_left'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_curve_up_left'] = calculate_angles(L1x - 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == 'T':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_across_top'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == 'U':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == 'V':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_right'] = calculate_angles(L1x + 2, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == 'W':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_right'] = calculate_angles(L1x + 2, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == 'X':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up_left'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == 'Y':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-    elif char == 'Z':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_across_bottom'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-
-    # Numbers (0-9)
-    elif char == '0':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['curve_up_left'] = calculate_angles(L1x - 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == '1':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == '2':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '3':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-
-    elif char == '4':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 1, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_across_middle'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '5':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['curve_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '6':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_up'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == '7':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_left'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-
-    elif char == '8':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['curve_up_right'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_left'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == '9':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-
-    # Special Symbols
-    elif char == '!':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_dot'] = calculate_angles(L1x, L1y - 2.2, L2x, L2y, O1, O2)
-
-    elif char == '@':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['curve_inward'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == '#':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_horizontal_1'] = calculate_angles(L1x + 0.5, L1y + 0.5, L2x, L2y, O1, O2)
-        angle_steps['move_horizontal_2'] = calculate_angles(L1x + 0.5, L1y - 0.5, L2x, L2y, O1, O2)
-
-    elif char == '$':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['curve_down'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-
-    # Define the rest of the special symbols
-    elif char == '%':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 0.5, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == '^':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == '&':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-    
-    elif char == '*':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_cross'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '%':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 0.5, L1y + 1, L2x, L2y, O1, O2)
-
-    elif char == '^':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_up'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-
-    elif char == '&':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '*':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_cross'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '(':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_left'] = calculate_angles(L1x - 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == ')':
-        angle_steps['move_to_start'] = calculate_angles(L1x - 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '_':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-        # Special Symbols and Empty Characters (Example)
-    elif char == '-':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '=':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y - 0.5, L2x, L2y, O1, O2)
-        angle_steps['move_across_top'] = calculate_angles(L1x + 1, L1y - 0.5, L2x, L2y, O1, O2)
-        angle_steps['move_across_bottom'] = calculate_angles(L1x + 1, L1y - 1.5, L2x, L2y, O1, O2)
-
-    elif char == '+':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_across'] = calculate_angles(L1x, L1y - 0.5, L2x, L2y, O1, O2)
-
-    elif char == '{':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_left'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '}':
-        angle_steps['move_to_start'] = calculate_angles(L1x - 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['curve_down_right'] = calculate_angles(L1x + 1, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '[':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_across_bottom'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == ']':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x, L1y - 2, L2x, L2y, O1, O2)
-        angle_steps['move_across_bottom'] = calculate_angles(L1x + 1, L1y - 2, L2x, L2y, O1, O2)
-
-    elif char == ':':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == ';':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 1, L2x, L2y, O1, O2)
-        angle_steps['move_curve_dot'] = calculate_angles(L1x + 0.2, L1y - 1.2, L2x, L2y, O1, O2)
-
-    elif char == '<':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_left'] = calculate_angles(L1x, L1y, L2x, L2y, O1, O2)
-
-    elif char == '>':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_right'] = calculate_angles(L1x + 1, L1y, L2x, L2y, O1, O2)
-
-    elif char == ',':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_down'] = calculate_angles(L1x + 0.5, L1y - 0.5, L2x, L2y, O1, O2)
-        angle_steps['move_curve_dot'] = calculate_angles(L1x + 0.2, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '.':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 0.5, L1y, L2x, L2y, O1, O2)
-        angle_steps['move_dot'] = calculate_angles(L1x + 0.2, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '?':
-        angle_steps['move_to_start'] = calculate_angles(L1x, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_curve_right'] = calculate_angles(L1x + 1, L1y + 1, L2x, L2y, O1, O2)
-        angle_steps['move_dot'] = calculate_angles(L1x + 0.2, L1y - 1, L2x, L2y, O1, O2)
-
-    elif char == '/':
-        angle_steps['move_to_start'] = calculate_angles(L1x + 1, L1y + 2, L2x, L2y, O1, O2)
-        angle_steps['move_diagonal_down_left'] = calculate_angles(L1x, L1y - 1, L2x, L2y, O1, O2)
-
-
-    return angle_steps
+    # Add the steps for the specified character
+    if char in char_steps:
+        for step in char_steps[char]:
+            add_step(step[0], step[1], step[2])
+
+    return steps
 
 # Function to handle a string of characters and output angles for all
-def generate_angles_for_string(text, L1x, L1y, L2x, L2y, O1, O2):
+def generate_angles_for_string(text, L1x, L1y, L2x, L2y):
     all_steps = {}
     
     for char in text:
-        all_steps[char] = generate_angles_for_character(char, L1x, L1y, L2x, L2y, O1, O2)
+        all_steps[char] = generate_angles_for_character(char, L1x, L1y, L2x, L2y)
 
     return all_steps
 
 # Main function to generate angles and write to JSON
 def main():
     # Example arm parameters
-    L1x, L1y = 5, 5  # Coordinates of the first link
-    L2x, L2y = 3, 3  # Coordinates of the second link
-    O1 = 0.1         # Offset 1 (slight offset for Θ1)
-    O2 = 0.05        # Offset 2 (slight offset for Θ2)
+    L1x, L1y = 1, 0.2  # Coordinates of the first link
+    L2x, L2y = 1, 0.2  # Coordinates of the second link
 
     # Input string: the full English keyboard characters
     input_string = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+{}[]:;<>,.?/'
 
     # Generate the angles for the string of characters
-    angles = generate_angles_for_string(input_string, L1x, L1y, L2x, L2y, O1, O2)
+    angles = generate_angles_for_string(input_string, L1x, L1y, L2x, L2y)
 
     # Save the generated angles to a JSON file
     with open('robot_arm_angles.json', 'w') as json_file:

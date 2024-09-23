@@ -1,0 +1,146 @@
+@font-face {
+  font-family: "Uncut Sans";
+  src: url("/assets/fonts/UncutSans-Regular.woff2") format("woff2"),
+    url("/assets/fonts/UncutSans-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Uncut Sans";
+  src: url("/assets/fonts/UncutSans-Bold.woff2") format("woff2"),
+    url("/assets/fonts/UncutSans-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+* {
+  font-family: "Uncut Sans", sans-serif;
+  box-sizing: border-box;
+}
+
+body,
+html,
+#root {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  background-color: #3172ae;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app {
+  background-color: #fff;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  width: 100%;
+}
+
+/* Header */
+.app-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.app-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.app-status {
+  font-size: 1rem;
+  margin-top: 0.5rem;
+}
+
+strong.Error {
+  color: red;
+}
+
+strong.Connected {
+  color: #3172ae;
+}
+
+strong.Disconnected {
+  color: gold;
+}
+
+/* Messages Section */
+.app-messages {
+  margin-bottom: 2rem;
+}
+
+.messages-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #34495e;
+}
+
+.messages-container {
+  background-color: #ecf0f1;
+  border-radius: 5px;
+  padding: 1rem;
+  height: 150px;
+  overflow-y: auto;
+  border: 1px solid #dcdcdc;
+}
+
+.messages-container p {
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+}
+
+.no-messages {
+  color: #7f8c8d;
+  font-style: italic;
+}
+
+/* Send Message Section */
+.app-send-message {
+  text-align: center;
+}
+
+.send-message-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #34495e;
+}
+
+.send-message-container {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.send-message-input {
+  width: 70%;
+  padding: 0.5rem;
+  border: 1px solid #dcdcdc;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.send-message-button {
+  background-color: #3172ae;
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.send-message-button:hover {
+  background-color: #1f6399;
+}
