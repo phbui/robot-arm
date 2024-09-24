@@ -3,6 +3,7 @@ import "./assets/css/App.css";
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<string>("Not connected");
+  const [armStatus, setArmStatus] = useState<string>("ARM not connected");
   const [messages, setMessages] = useState<string[]>([]);
   const [inputMessage, setInputMessage] = useState<string>("");
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -19,8 +20,21 @@ const App: React.FC = () => {
     };
 
     ws.onmessage = (event: MessageEvent) => {
-      console.log("Message from server:", event.data);
-      setMessages((prevMessages) => [...prevMessages, event.data]);
+      const serverMessage = event.data;
+      console.log("Message from server:", serverMessage);
+
+      try {
+        const parsedMessage = JSON.parse(serverMessage);
+
+        // Handle ARM connection status
+        if (parsedMessage.id === "SYSTEM") {
+          setArmStatus(parsedMessage.message);
+        } else {
+          setMessages((prevMessages) => [...prevMessages, serverMessage]);
+        }
+      } catch (error) {
+        console.error("Failed to parse message:", error);
+      }
     };
 
     ws.onerror = (error: Event) => {
@@ -72,6 +86,9 @@ const App: React.FC = () => {
         <h1 className="app-title">WebSocket Client Portal</h1>
         <p className="app-status">
           Status: <strong className={status}>{status}</strong>
+        </p>
+        <p className="app-arm-status">
+          ARM Status: <strong>{armStatus}</strong>
         </p>
       </header>
 
