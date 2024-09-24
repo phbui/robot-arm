@@ -1,33 +1,42 @@
 const WebSocket = require("ws");
 const wss = new WebSocket.Server({ port: 8080 });
 
+const l1x = 7;
+const l1y = 1;
+
+const l2x = 5;
+const l2y = 0.5;
+
 // Kinematics calculation function
 function calculateAngles(x, y) {
-  const L1 = 10; // Length of the first arm link
-  const L2 = 10; // Length of the second arm link
+  // Calculate the real lengths of the links
+  const l1z = Math.sqrt(l1x * l1x + l1y * l1y);
+  const l2z = Math.sqrt(l2x * l2x + l2y * l2y);
 
-  const r = Math.sqrt(x ** 2 + y ** 2); // Distance to point
+  // Calculate the angles (offsets) for the links
+  const O1 = Math.atan2(l1y, l1x);
+  const O2 = Math.atan2(l2y, l2x);
 
-  // Handle unreachable points
-  if (r > L1 + L2) {
-    return { theta1: NaN, theta2: NaN };
-  }
+  // Adjust the target point for the offsets
+  const adjustedX = x - O1; // Compensating for the O1 offset
+  const adjustedY = y - O2; // Compensating for the O2 offset
 
-  const cosTheta2 = (r ** 2 - L1 ** 2 - L2 ** 2) / (2 * L1 * L2);
+  // Inverse kinematics equations to find the angles
+  const r = Math.sqrt(adjustedX * adjustedX + adjustedY * adjustedY);
+  const alpha = Math.atan2(adjustedY, adjustedX);
 
-  // Clamp cosTheta2 to the range [-1, 1] to avoid NaN from Math.acos
-  const clampedCosTheta2 = Math.max(-1, Math.min(1, cosTheta2));
+  // Compute angles based on the lengths of L1 and L2
+  const cosTheta2 = (r * r - l1z * l1z - l2z * l2z) / (2 * l1z * l2z);
+  const theta2 = Math.acos(cosTheta2);
 
-  const theta2 = Math.acos(clampedCosTheta2); // Elbow angle
+  const sinTheta2 = Math.sqrt(1 - cosTheta2 * cosTheta2); // Trigonometric identity
+  const theta1 = alpha - Math.atan2(l2z * sinTheta2, l1z + l2z * cosTheta2);
 
-  const theta1 =
-    Math.atan2(y, x) -
-    Math.atan2(L2 * Math.sin(theta2), L1 + L2 * Math.cos(theta2)); // Shoulder angle
+  // Convert from radians to degrees
+  const theta1Deg = theta1 * (180 / Math.PI);
+  const theta2Deg = theta2 * (180 / Math.PI);
 
-  return {
-    theta1: (theta1 * 180) / Math.PI, // Convert to degrees
-    theta2: (theta2 * 180) / Math.PI,
-  };
+  return { theta1: theta1Deg, theta2: theta2Deg };
 }
 
 let connections = {
