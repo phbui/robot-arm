@@ -52,14 +52,25 @@ function calculateAngles(x, y) {
 
   // Compute angles based on the lengths of L1 and L2
   const cosTheta2 = (r * r - l1z * l1z - l2z * l2z) / (2 * l1z * l2z);
-  const theta2 = Math.acos(Math.max(-1, Math.min(1, cosTheta2))); // Clamp value to avoid NaN
+  let theta2 = Math.acos(Math.max(-1, Math.min(1, cosTheta2))); // Clamp value to avoid NaN
 
   const sinTheta2 = Math.sqrt(1 - cosTheta2 * cosTheta2); // Trigonometric identity
-  const theta1 = alpha - Math.atan2(l2z * sinTheta2, l1z + l2z * cosTheta2);
+  let theta1 = alpha - Math.atan2(l2z * sinTheta2, l1z + l2z * cosTheta2);
 
   // Convert from radians to degrees and round to 2 decimal places
-  const theta1Deg = roundToTwoDecimals(theta1 * (180 / Math.PI));
-  const theta2Deg = roundToTwoDecimals(theta2 * (180 / Math.PI));
+  let theta1Deg = roundToTwoDecimals(theta1 * (180 / Math.PI));
+  let theta2Deg = roundToTwoDecimals(theta2 * (180 / Math.PI));
+
+  // Check if the angles are NaN and handle gracefully
+  if (isNaN(theta1Deg)) {
+    // For theta1, we can use a reasonable default or clamp to a valid range.
+    theta1Deg = 0; // Default to 0 if NaN
+  }
+
+  if (isNaN(theta2Deg)) {
+    // For theta2, clamp it to the nearest valid value (0 or 180 degrees)
+    theta2Deg = 180; // Clamp to max limit if NaN
+  }
 
   return { theta1: theta1Deg, theta2: theta2Deg };
 }
