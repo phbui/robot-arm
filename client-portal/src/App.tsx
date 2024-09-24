@@ -29,9 +29,9 @@ const App: React.FC = () => {
         // Handle ARM connection status
         if (parsedMessage.id === "SYSTEM") {
           setArmStatus(parsedMessage.message);
-        } else {
-          setMessages((prevMessages) => [...prevMessages, serverMessage]);
         }
+
+        setMessages((prevMessages) => [...prevMessages, serverMessage]);
       } catch (error) {
         console.error("Failed to parse message:", error);
       }

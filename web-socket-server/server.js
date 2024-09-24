@@ -1,9 +1,12 @@
 const WebSocket = require("ws");
-const robot_arm_angles = require("../path-maker/robot_arm_angles.json"); // Adjust the path if needed
+const robot_arm_angles = require("../path-maker/robot_arm_angles.json");
 
 const wss = new WebSocket.Server({ port: 8080 });
 
-let armConnected = false;
+let connections = {
+  arm: null, // Store the WebSocket connection of the ARM
+  client: null, // Store the WebSocket connection of the CLIENT
+};
 
 wss.on("connection", (ws) => {
   console.log("Client connected");
@@ -15,6 +18,15 @@ wss.on("connection", (ws) => {
       const messageData = JSON.parse(message);
 
       if (messageData.id === "CLIENT" && Array.isArray(messageData.data)) {
+        // Store the CLIENT connection
+        connections.client = ws;
+
+        // Check if ARM is already connected
+        if (connections.arm) {
+          // Notify CLIENT that ARM is connected
+          ws.send(JSON.stringify({ id: "SYSTEM", message: "ARM connected" }));
+        }
+
         const charArray = messageData.data;
 
         charArray.forEach((char) => {
@@ -22,18 +34,28 @@ wss.on("connection", (ws) => {
             console.log(`Character: ${char}`);
             console.log(robot_arm_angles[char]);
 
-            // Send the processed character data to ARM (ESP32)
-            wss.clients.forEach((client) => {
-              if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(
-                  JSON.stringify({
-                    id: "ARM",
-                    character: char,
-                    data: robot_arm_angles[char],
-                  })
-                );
-              }
+            // Prepare the message to send to the ARM
+            const messageToArm = JSON.stringify({
+              id: "ARM",
+              character: char,
+              data: robot_arm_angles[char],
             });
+
+            // Send the processed character data to ARM (ESP32)
+            if (
+              connections.arm &&
+              connections.arm.readyState === WebSocket.OPEN
+            ) {
+              connections.arm.send(messageToArm);
+
+              // Write back to CLIENT what was sent to ARM
+              if (
+                connections.client &&
+                connections.client.readyState === WebSocket.OPEN
+              ) {
+                connections.client.send(`Sent to ARM: ${messageToArm}`);
+              }
+            }
           } else {
             console.log(`Character ${char} not found in robot_arm_angles`);
           }
@@ -42,11 +64,13 @@ wss.on("connection", (ws) => {
         ws.send(`Received and processed ${charArray.length} characters`);
       } else if (messageData.id === "ARM") {
         console.log("Message received from ARM.");
-        armConnected = true;
+
+        // Store the ARM connection
+        connections.arm = ws;
 
         // Notify all clients that the ARM is connected
         wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
             client.send(
               JSON.stringify({ id: "SYSTEM", message: "ARM connected" })
             );
@@ -66,8 +90,10 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     console.log("Client disconnected");
 
-    if (armConnected) {
-      armConnected = false;
+    if (connections.arm === ws) {
+      // If the ARM disconnected
+      console.log("ARM disconnected");
+      connections.arm = null;
 
       // Notify all clients that the ARM has disconnected
       wss.clients.forEach((client) => {
@@ -77,6 +103,10 @@ wss.on("connection", (ws) => {
           );
         }
       });
+    } else if (connections.client === ws) {
+      // If the CLIENT disconnected
+      console.log("CLIENT disconnected");
+      connections.client = null;
     }
   });
 });
