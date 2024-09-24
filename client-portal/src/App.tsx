@@ -74,8 +74,14 @@ const App: React.FC = () => {
   const handleMouseUp = () => {
     isDrawing.current = false;
     if (socket && socket.readyState === WebSocket.OPEN && currentLine) {
-      console.log(currentLine);
-      socket.send(JSON.stringify({ id: "DRAWING", data: [currentLine] })); // Send only the new line
+      // Scale down points by a factor of 50 before sending to the server
+      const scaledLine = {
+        points: currentLine.points.map(
+          (point, index) => (index % 2 === 0 ? point / 50 : point / 50) // Scale both x and y
+        ),
+      };
+      console.log("Scaled Line:", scaledLine);
+      socket.send(JSON.stringify({ id: "DRAWING", data: [scaledLine] })); // Send only the scaled line
     }
     setCurrentLine(null); // Reset current line after sending
   };
