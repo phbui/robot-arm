@@ -2,6 +2,7 @@
 #include <WebSocketsClient.h>
 #include <ESP32Servo.h>
 #include <ArduinoJson.h>
+#include <queue>  // Include queue library for command queue
 
 // Wi-Fi credentials
 const char *ssid = "Phi";
@@ -29,92 +30,107 @@ Servo penServo;
 float currentTheta1 = 0.0;
 float currentTheta2 = 0.0;
 
+// Movement status flags
+bool movingStepper = false;
+bool movingServo = false;
+
+// Define a struct to hold movement commands
+struct MovementCommand {
+  float theta1;
+  float theta2;
+  bool penState;
+};
+
+// Create a queue to hold movement commands
+std::queue<MovementCommand> commandQueue;
+
 WebSocketsClient webSocket;
 
-// Function to control stepper motor via motor driver
-void moveStepper(float targetTheta1)
+// Variables for non-blocking stepper movement
+int currentStep = 0;
+int totalSteps = 0;
+
+// Non-blocking stepper movement
+void startMoveStepper(float targetTheta1)
 {
-  Serial.println("Moving stepper motor...");
-  
   // Determine the direction to move (forward or backward)
   if (targetTheta1 > currentTheta1)
   {
     digitalWrite(DIR_PIN, HIGH); // Forward
-    Serial.println("Stepper motor moving forward.");
   }
   else
   {
     digitalWrite(DIR_PIN, LOW); // Backward
-    Serial.println("Stepper motor moving backward.");
   }
 
-  // Calculate how many steps to take (difference between current and target angles)
-  int steps = abs(targetTheta1 - currentTheta1) * 10; // Adjust based on your stepper's steps per degree
-  Serial.printf("Number of steps: %d\n", steps);
+  // Calculate the total number of steps to move
+  totalSteps = abs(targetTheta1 - currentTheta1) * 10; // Adjust based on your stepper's steps per degree
+  currentStep = 0; // Reset step counter
+  movingStepper = true; // Indicate movement is in progress
+}
 
-  // Send pulses to STEP_PIN to move the motor
-  for (int i = 0; i < steps; i++)
+void updateStepper()
+{
+  if (movingStepper && currentStep < totalSteps)
   {
+    // Perform a single step
     digitalWrite(STEP_PIN, HIGH);
     delayMicroseconds(1000); // Adjust delay for speed (e.g., 1000 µs = 1 ms)
     digitalWrite(STEP_PIN, LOW);
     delayMicroseconds(1000);
 
-    // Add yield() to allow the system to handle background tasks and avoid WDT resets
-    if (i % 50 == 0)
-    { // Yield every 50 steps to avoid long blocking
+    currentStep++; // Increment the step count
+
+    // Add yield() to avoid WDT resets during long movements
+    if (currentStep % 50 == 0)
+    {
       yield();
     }
-  }
 
-  // Update currentTheta1 to reflect the new position
-  currentTheta1 = targetTheta1;
-  Serial.printf("Stepper motor moved to: %f\n", currentTheta1);
-}
-
-// Pen movement: true = down, false = up
-void movePen(bool penState)
-{
-  if (penState)
-  {
-    penServo.write(180); // Move pen down
-    Serial.println("Pen moved down.");
-  }
-  else
-  {
-    penServo.write(0); // Move pen up
-    Serial.println("Pen moved up.");
+    if (currentStep >= totalSteps)
+    {
+      movingStepper = false; // Movement completed
+      currentTheta1 = (totalSteps / 10.0) + currentTheta1; // Update to the new theta position
+      Serial.printf("Stepper motor moved to: %f\n", currentTheta1);
+    }
   }
 }
 
-// Smooth movement function for stepper (theta1) and servo (theta2)
-void moveTo(float targetTheta1, float targetTheta2, bool penState)
+// Variables for non-blocking servo movement
+float targetServoTheta = 0.0;
+
+void startMoveServo(float targetTheta2)
 {
-  Serial.printf("Moving to theta1: %f, theta2: %f, penState: %s\n", targetTheta1, targetTheta2, penState ? "true" : "false");
+  targetServoTheta = targetTheta2; // Set the target angle for the servo
+  movingServo = true; // Indicate movement is in progress
+}
 
-  // Move pen first
-  movePen(penState);
-
-  // Move theta1 (stepper)
-  moveStepper(targetTheta1);
-
-  // Smoothly move theta2 (servo)
-  while (currentTheta2 != targetTheta2)
+void updateServo()
+{
+  if (movingServo && currentTheta2 != targetServoTheta)
   {
-    if (currentTheta2 < targetTheta2)
+    // Move the servo gradually toward the target position
+    if (currentTheta2 < targetServoTheta)
     {
       currentTheta2 += 0.5;
-      servoTheta2.write(currentTheta2); // Gradually update servo position
     }
-    else if (currentTheta2 > targetTheta2)
+    else if (currentTheta2 > targetServoTheta)
     {
       currentTheta2 -= 0.5;
-      servoTheta2.write(currentTheta2); // Gradually update servo position
     }
 
+    servoTheta2.write(currentTheta2); // Update servo position
+
     delay(20); // Small delay for smoother movement
+
+    // Check if the movement is complete
+    if (abs(currentTheta2 - targetServoTheta) < 0.5)
+    {
+      currentTheta2 = targetServoTheta;
+      movingServo = false; // Movement completed
+      Serial.printf("Servo moved to: %f\n", currentTheta2);
+    }
   }
-  Serial.printf("Movement completed. Final positions - Theta1: %f, Theta2: %f\n", targetTheta1, targetTheta2);
 }
 
 void setup()
@@ -156,7 +172,45 @@ void setup()
 
 void loop()
 {
-  webSocket.loop();
+  webSocket.loop(); // Continue handling WebSocket communication
+
+  // If no movement is in progress and the command queue is not empty, process the next command
+  if (!movingStepper && !movingServo && !commandQueue.empty())
+  {
+    MovementCommand cmd = commandQueue.front();
+    commandQueue.pop();
+    startMoveTo(cmd.theta1, cmd.theta2, cmd.penState);
+  }
+
+  // Continuously update stepper and servo movements in a non-blocking way
+  updateStepper();  // Handle stepper motor movement
+  updateServo();    // Handle servo movement
+}
+
+void movePen(bool penState)
+{
+  if (penState)
+  {
+    penServo.write(180); // Move pen down
+    Serial.println("Pen moved down.");
+  }
+  else
+  {
+    penServo.write(0); // Move pen up
+    Serial.println("Pen moved up.");
+  }
+}
+
+void startMoveTo(float targetTheta1, float targetTheta2, bool penState)
+{
+  Serial.printf("Starting move to theta1: %f, theta2: %f, penState: %s\n", targetTheta1, targetTheta2, penState ? "true" : "false");
+
+  // Move pen first
+  movePen(penState);
+
+  // Start non-blocking movements
+  startMoveStepper(targetTheta1);
+  startMoveServo(targetTheta2);
 }
 
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
@@ -188,12 +242,8 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
   }
 }
 
-// Function to handle the received WebSocket message
 void handleReceivedMessage(uint8_t *payload, size_t length)
 {
-  Serial.println("Processing received WebSocket message...");
-  
-  // Parse the incoming JSON message
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, payload);
 
@@ -208,14 +258,12 @@ void handleReceivedMessage(uint8_t *payload, size_t length)
   if (strcmp(id, "ARM") == 0)
   {
     JsonObject data = doc["data"];
-
     float theta1 = data["theta1"];
     float theta2 = data["theta2"];
     bool pen = data["pen"];
 
-    Serial.printf("Parsed data - Theta1: %f, Theta2: %f, Pen: %s\n", theta1, theta2, pen ? "true" : "false");
-
-    // Perform the movement
-    moveTo(theta1, theta2, pen);
+    MovementCommand cmd = { theta1, theta2, pen };
+    commandQueue.push(cmd);  // Add movement to queue
+    Serial.printf("Queued movement - Theta1: %f, Theta2: %f, Pen: %s\n", theta1, theta2, pen ? "true" : "false");
   }
 }
