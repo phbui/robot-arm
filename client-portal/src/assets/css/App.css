@@ -46,7 +46,6 @@ html,
   width: 100%;
 }
 
-/* Header */
 .app-header {
   text-align: center;
   margin-bottom: 2rem;
@@ -75,7 +74,6 @@ strong.Disconnected {
   color: gold;
 }
 
-/* Messages Section */
 .app-messages {
   margin-bottom: 2rem;
 }
@@ -105,7 +103,6 @@ strong.Disconnected {
   font-style: italic;
 }
 
-/* Send Message Section */
 .app-send-message {
   text-align: center;
 }
@@ -143,4 +140,42 @@ strong.Disconnected {
 
 .send-message-button:hover {
   background-color: #1f6399;
+}
+
+/* Drawing Zone Section */
+.drawing-zone {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.drawing-zone .messages-title {
+  width: 100%;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: #34495e;
+}
+
+.drawing-zone canvas {
+  border: 1px solid #dcdcdc !important;
+  border-radius: 5px;
+  background-color: #fff;
+}
+.clear-button {
+  width: 200px;
+  margin-top: 10px;
+  padding: 10px 20px;
+  background-color: #ff6b6b;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.clear-button:hover {
+  background-color: #e63946;
 }

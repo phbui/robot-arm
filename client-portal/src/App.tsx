@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Stage, Layer, Line } from "react-konva";
 import "./assets/css/App.css";
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<string>("Not connected");
   const [armStatus, setArmStatus] = useState<string>("ARM not connected");
   const [messages, setMessages] = useState<string[]>([]);
-  const [inputMessage, setInputMessage] = useState<string>("");
-  const [socket, setSocket] = useState<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<any[]>([]); // Drawing lines
+  const isDrawing = useRef(false);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    // Create a new WebSocket instance
     const ws = new WebSocket("ws://localhost:8080");
 
-    // Set the WebSocket event handlers
     ws.onopen = () => {
       console.log("Connected to WebSocket server");
       setStatus("Connected");
@@ -21,13 +21,10 @@ const App: React.FC = () => {
 
     ws.onmessage = (event: MessageEvent) => {
       const serverMessage = event.data;
-      console.log("Message from server:", serverMessage);
       setMessages((prevMessages) => [...prevMessages, serverMessage]);
 
       try {
         const parsedMessage = JSON.parse(serverMessage);
-
-        // Handle ARM connection status
         if (parsedMessage.id === "SYSTEM") {
           setArmStatus(parsedMessage.message);
         }
@@ -38,40 +35,45 @@ const App: React.FC = () => {
 
     ws.onerror = (error: Event) => {
       console.error("WebSocket error:", error);
+      setStatus("Error");
     };
 
-    // Store WebSocket instance in state
     setSocket(ws);
 
-    // Clean up WebSocket connection on component unmount
     return () => {
       ws.close();
     };
   }, []);
 
-  // Function to send an array of characters to the WebSocket server
-  const sendMessage = () => {
+  const handleMouseDown = (event: any) => {
+    isDrawing.current = true;
+    const pos = event.target.getStage().getPointerPosition();
+    setLines([...lines, { points: [pos.x, pos.y] }]);
+  };
+
+  const handleMouseMove = (event: any) => {
+    if (!isDrawing.current) return;
+    const stage = event.target.getStage();
+    const point = stage.getPointerPosition();
+    const lastLine = lines[lines.length - 1];
+    lastLine.points = lastLine.points.concat([point.x, point.y]);
+    lines.splice(lines.length - 1, 1, lastLine);
+    setLines(lines.concat());
+  };
+
+  const handleMouseUp = () => {
+    isDrawing.current = false;
     if (socket && socket.readyState === WebSocket.OPEN) {
-      // Split the input message into an array of characters
-      const charArray = inputMessage.split("");
-
-      // Send the array of characters to the WebSocket server
-      socket.send(JSON.stringify({ id: "CLIENT", data: charArray }));
-
-      console.log("Sent message:", charArray);
-      setInputMessage(""); // Clear input field after sending
-    } else {
-      console.log("WebSocket is not connected");
+      console.log(lines);
+      socket.send(JSON.stringify({ id: "DRAWING", data: lines }));
     }
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      sendMessage();
-    }
+  // Function to clear the drawing
+  const handleClearDrawing = () => {
+    setLines([]); // Clear all lines
   };
 
-  // Scroll to the bottom of the message container when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -102,21 +104,29 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      <section className="app-send-message">
-        <h2 className="send-message-title">Send a Message</h2>
-        <div className="send-message-container">
-          <input
-            className="send-message-input"
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter a message"
-          />
-          <button className="send-message-button" onClick={sendMessage}>
-            Send
-          </button>
-        </div>
+      <section className="drawing-zone">
+        <h2 className="messages-title">Drawing Zone</h2>
+        <Stage
+          width={536}
+          height={300}
+          onMouseDown={handleMouseDown}
+          onMousemove={handleMouseMove}
+          onMouseup={handleMouseUp}
+        >
+          <Layer>
+            {lines.map((line, i) => (
+              <Line
+                key={i}
+                points={line.points}
+                stroke="black"
+                strokeWidth={2}
+              />
+            ))}
+          </Layer>
+        </Stage>
+        <button className="clear-button" onClick={handleClearDrawing}>
+          Clear Drawing
+        </button>
       </section>
     </div>
   );
