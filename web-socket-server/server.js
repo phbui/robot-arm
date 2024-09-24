@@ -78,17 +78,31 @@ function calculateAngles(x, y) {
 let connections = {
   arm: null,
   client: null,
+  lastArmMessage: null,
+  lastClientMessage: null,
 };
 
-// Function to send a structured message to a WebSocket client
-function sendMessage(ws, id, message, data = null) {
-  ws.send(
-    JSON.stringify({
-      id,
-      message,
-      data,
-    })
-  );
+// Function to send a structured message to a WebSocket client only if it's different from the last message
+function sendMessage(ws, id, message, data = null, isArm = false) {
+  const newMessage = JSON.stringify({
+    id,
+    message,
+    data,
+  });
+
+  if (isArm) {
+    // For ARM, check if the message is the same as the last one
+    if (newMessage !== connections.lastArmMessage) {
+      ws.send(newMessage);
+      connections.lastArmMessage = newMessage;
+    }
+  } else {
+    // For CLIENT, check if the message is the same as the last one
+    if (newMessage !== connections.lastClientMessage) {
+      ws.send(newMessage);
+      connections.lastClientMessage = newMessage;
+    }
+  }
 }
 
 wss.on("connection", (ws) => {
@@ -121,11 +135,17 @@ wss.on("connection", (ws) => {
               connections.arm &&
               connections.arm.readyState === WebSocket.OPEN
             ) {
-              sendMessage(connections.arm, "ARM", "Move to calculated angles", {
-                theta1: angles.theta1,
-                theta2: angles.theta2,
-                pen: true, // Assuming pen down during drawing
-              });
+              sendMessage(
+                connections.arm,
+                "ARM",
+                "Move to calculated angles",
+                {
+                  theta1: angles.theta1,
+                  theta2: angles.theta2,
+                  pen: true, // Assuming pen down during drawing
+                },
+                true
+              );
             }
 
             // Send the calculated angles back to the client for logging
@@ -140,7 +160,8 @@ wss.on("connection", (ws) => {
                 {
                   theta1: angles.theta1,
                   theta2: angles.theta2,
-                }
+                },
+                false
               );
             }
           }
@@ -152,9 +173,15 @@ wss.on("connection", (ws) => {
           connections.arm &&
           connections.arm.readyState === WebSocket.OPEN
         ) {
-          sendMessage(connections.arm, "ARM", "Pen up", {
-            pen: false, // Lift the pen after the drawing
-          });
+          sendMessage(
+            connections.arm,
+            "ARM",
+            "Pen up",
+            {
+              pen: false, // Lift the pen after the drawing
+            },
+            true
+          );
         }
       });
     } else if (messageData.id === "ARM") {
@@ -167,7 +194,7 @@ wss.on("connection", (ws) => {
         connections.client &&
         connections.client.readyState === WebSocket.OPEN
       ) {
-        sendMessage(connections.client, "SYSTEM", "ARM connected");
+        sendMessage(connections.client, "SYSTEM", "ARM connected", null, false);
       }
     }
   });
@@ -176,6 +203,7 @@ wss.on("connection", (ws) => {
     // Handle ARM disconnection
     if (connections.arm === ws) {
       connections.arm = null;
+      connections.lastArmMessage = null; // Reset the last message when disconnected
       console.log("ARM disconnected");
 
       // Notify CLIENT that ARM is disconnected
@@ -183,13 +211,20 @@ wss.on("connection", (ws) => {
         connections.client &&
         connections.client.readyState === WebSocket.OPEN
       ) {
-        sendMessage(connections.client, "SYSTEM", "ARM disconnected");
+        sendMessage(
+          connections.client,
+          "SYSTEM",
+          "ARM disconnected",
+          null,
+          false
+        );
       }
     }
 
     // Handle CLIENT disconnection
     if (connections.client === ws) {
       connections.client = null;
+      connections.lastClientMessage = null; // Reset the last message when disconnected
       console.log("Client disconnected");
     }
   });
@@ -200,11 +235,11 @@ wss.on("connection", (ws) => {
     console.log("Client connection established");
 
     // Send a system message to the client indicating successful connection
-    sendMessage(connections.client, "SYSTEM", "Client connected");
+    sendMessage(connections.client, "SYSTEM", "Client connected", null, false);
 
     // Notify CLIENT if ARM is already connected
     if (connections.arm && connections.arm.readyState === WebSocket.OPEN) {
-      sendMessage(connections.client, "SYSTEM", "ARM connected");
+      sendMessage(connections.client, "SYSTEM", "ARM connected", null, false);
     }
   }
 });
