@@ -7,12 +7,32 @@ const l1y = 1;
 const l2x = 5;
 const l2y = 0.5;
 
+// Calculate the real lengths of the links
+const l1z = Math.sqrt(l1x * l1x + l1y * l1y);
+const l2z = Math.sqrt(l2x * l2x + l2y * l2y);
+
+// Define the workspace limits
+const rMin = Math.abs(l1z - l2z); // Minimum reach of the arm
+const rMax = l1z + l2z; // Maximum reach of the arm
+
+// Function to apply bounds to a point (x, y)
+function applyBoundsToPoint(x, y) {
+  // Convert to polar coordinates
+  const r = Math.sqrt(x * x + y * y);
+  const theta = Math.atan2(y, x);
+
+  // Clamp the radius to be within the robot arm's limits
+  const rNew = Math.max(rMin, Math.min(r, rMax));
+
+  // Convert back to Cartesian coordinates
+  const xNew = rNew * Math.cos(theta);
+  const yNew = rNew * Math.sin(theta);
+
+  return { x: xNew, y: yNew };
+}
+
 // Kinematics calculation function
 function calculateAngles(x, y) {
-  // Calculate the real lengths of the links
-  const l1z = Math.sqrt(l1x * l1x + l1y * l1y);
-  const l2z = Math.sqrt(l2x * l2x + l2y * l2y);
-
   // Calculate the angles (offsets) for the links
   const O1 = Math.atan2(l1y, l1x);
   const O2 = Math.atan2(l2y, l2x);
@@ -27,7 +47,7 @@ function calculateAngles(x, y) {
 
   // Compute angles based on the lengths of L1 and L2
   const cosTheta2 = (r * r - l1z * l1z - l2z * l2z) / (2 * l1z * l2z);
-  const theta2 = Math.acos(cosTheta2);
+  const theta2 = Math.acos(Math.max(-1, Math.min(1, cosTheta2))); // Clamp value to avoid NaN
 
   const sinTheta2 = Math.sqrt(1 - cosTheta2 * cosTheta2); // Trigonometric identity
   const theta1 = alpha - Math.atan2(l2z * sinTheta2, l1z + l2z * cosTheta2);
@@ -71,10 +91,13 @@ wss.on("connection", (ws) => {
             const x = line.points[index];
             const y = line.points[index + 1];
 
+            // Apply bounds to the point
+            const { x: boundedX, y: boundedY } = applyBoundsToPoint(x, y);
+
             // Calculate the angles for the robot arm
-            const angles = calculateAngles(x, y);
+            const angles = calculateAngles(boundedX, boundedY);
             console.log(
-              `Coordinates: (${x}, ${y}) => Angles: ${angles.theta1}, ${angles.theta2}`
+              `Coordinates: (${boundedX}, ${boundedY}) => Angles: ${angles.theta1}, ${angles.theta2}`
             );
 
             // Send the calculated angles to ARM
@@ -97,7 +120,7 @@ wss.on("connection", (ws) => {
               sendMessage(
                 connections.client,
                 "SYSTEM",
-                `Calculated angles for (${x}, ${y})`,
+                `Calculated angles for (${boundedX}, ${boundedY})`,
                 {
                   theta1: angles.theta1.toFixed(2),
                   theta2: angles.theta2.toFixed(2),
