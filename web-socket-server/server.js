@@ -15,6 +15,11 @@ const l2z = Math.sqrt(l2x * l2x + l2y * l2y);
 const rMin = Math.abs(l1z - l2z); // Minimum reach of the arm
 const rMax = l1z + l2z; // Maximum reach of the arm
 
+// Helper function to round to 2 decimal places
+function roundToTwoDecimals(value) {
+  return Math.round(value * 100) / 100;
+}
+
 // Function to apply bounds to a point (x, y)
 function applyBoundsToPoint(x, y) {
   // Convert to polar coordinates
@@ -24,9 +29,9 @@ function applyBoundsToPoint(x, y) {
   // Clamp the radius to be within the robot arm's limits
   const rNew = Math.max(rMin, Math.min(r, rMax));
 
-  // Convert back to Cartesian coordinates
-  const xNew = rNew * Math.cos(theta);
-  const yNew = rNew * Math.sin(theta);
+  // Convert back to Cartesian coordinates and round to 2 decimal places
+  const xNew = roundToTwoDecimals(rNew * Math.cos(theta));
+  const yNew = roundToTwoDecimals(rNew * Math.sin(theta));
 
   return { x: xNew, y: yNew };
 }
@@ -52,9 +57,9 @@ function calculateAngles(x, y) {
   const sinTheta2 = Math.sqrt(1 - cosTheta2 * cosTheta2); // Trigonometric identity
   const theta1 = alpha - Math.atan2(l2z * sinTheta2, l1z + l2z * cosTheta2);
 
-  // Convert from radians to degrees
-  const theta1Deg = theta1 * (180 / Math.PI);
-  const theta2Deg = theta2 * (180 / Math.PI);
+  // Convert from radians to degrees and round to 2 decimal places
+  const theta1Deg = roundToTwoDecimals(theta1 * (180 / Math.PI));
+  const theta2Deg = roundToTwoDecimals(theta2 * (180 / Math.PI));
 
   return { theta1: theta1Deg, theta2: theta2Deg };
 }
@@ -91,10 +96,10 @@ wss.on("connection", (ws) => {
             const x = line.points[index];
             const y = line.points[index + 1];
 
-            // Apply bounds to the point
+            // Apply bounds to the point and round to 2 decimal places
             const { x: boundedX, y: boundedY } = applyBoundsToPoint(x, y);
 
-            // Calculate the angles for the robot arm
+            // Calculate the angles for the robot arm and round to 2 decimal places
             const angles = calculateAngles(boundedX, boundedY);
             console.log(
               `Coordinates: (${boundedX}, ${boundedY}) => Angles: ${angles.theta1}, ${angles.theta2}`
@@ -122,8 +127,8 @@ wss.on("connection", (ws) => {
                 "SYSTEM",
                 `Calculated angles for (${boundedX}, ${boundedY})`,
                 {
-                  theta1: angles.theta1.toFixed(2),
-                  theta2: angles.theta2.toFixed(2),
+                  theta1: angles.theta1,
+                  theta2: angles.theta2,
                 }
               );
             }
