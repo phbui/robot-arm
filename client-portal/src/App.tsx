@@ -7,7 +7,10 @@ const App: React.FC = () => {
   const [armStatus, setArmStatus] = useState<string>("ARM not connected");
   const [messages, setMessages] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [lines, setLines] = useState<any[]>([]); // Drawing lines
+  const [lines, setLines] = useState<{ points: number[] }[]>([]); // Array of lines
+  const [currentLine, setCurrentLine] = useState<{ points: number[] } | null>(
+    null
+  ); // Track the current line being drawn
   const isDrawing = useRef(false);
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
@@ -48,30 +51,41 @@ const App: React.FC = () => {
   const handleMouseDown = (event: any) => {
     isDrawing.current = true;
     const pos = event.target.getStage().getPointerPosition();
-    setLines([...lines, { points: [pos.x, pos.y] }]);
+    const newLine = { points: [pos.x, pos.y] }; // Start new line
+    setCurrentLine(newLine); // Track the current new line
+    setLines((prevLines) => [...prevLines, newLine]); // Add new line to all lines
   };
 
   const handleMouseMove = (event: any) => {
-    if (!isDrawing.current) return;
+    if (!isDrawing.current || !currentLine) return;
     const stage = event.target.getStage();
     const point = stage.getPointerPosition();
-    const lastLine = lines[lines.length - 1];
-    lastLine.points = lastLine.points.concat([point.x, point.y]);
-    lines.splice(lines.length - 1, 1, lastLine);
-    setLines(lines.concat());
+    const updatedLine = {
+      ...currentLine,
+      points: [...currentLine.points, point.x, point.y],
+    }; // Add new points to the current line
+    setCurrentLine(updatedLine); // Update the current line state
+    setLines((prevLines) => [
+      ...prevLines.slice(0, prevLines.length - 1),
+      updatedLine,
+    ]); // Replace the last line with the updated one
   };
 
   const handleMouseUp = () => {
     isDrawing.current = false;
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      console.log(lines);
-      socket.send(JSON.stringify({ id: "DRAWING", data: lines }));
+    if (socket && socket.readyState === WebSocket.OPEN && currentLine) {
+      console.log(currentLine);
+      socket.send(JSON.stringify({ id: "DRAWING", data: [currentLine] })); // Send only the new line
     }
+    setCurrentLine(null); // Reset current line after sending
   };
 
   // Function to clear the drawing
   const handleClearDrawing = () => {
     setLines([]); // Clear all lines
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ id: "CLEAR" })); // Notify server to clear
+    }
   };
 
   useEffect(() => {
