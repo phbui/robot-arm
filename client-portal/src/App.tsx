@@ -22,6 +22,7 @@ const App: React.FC = () => {
     ws.onmessage = (event: MessageEvent) => {
       const serverMessage = event.data;
       console.log("Message from server:", serverMessage);
+      setMessages((prevMessages) => [...prevMessages, serverMessage]);
 
       try {
         const parsedMessage = JSON.parse(serverMessage);
@@ -30,8 +31,6 @@ const App: React.FC = () => {
         if (parsedMessage.id === "SYSTEM") {
           setArmStatus(parsedMessage.message);
         }
-
-        setMessages((prevMessages) => [...prevMessages, serverMessage]);
       } catch (error) {
         console.error("Failed to parse message:", error);
       }
@@ -39,7 +38,6 @@ const App: React.FC = () => {
 
     ws.onerror = (error: Event) => {
       console.error("WebSocket error:", error);
-      setStatus("Error");
     };
 
     // Store WebSocket instance in state
