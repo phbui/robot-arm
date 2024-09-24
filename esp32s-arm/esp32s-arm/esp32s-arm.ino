@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
-#include <ESP32Servo.h> 
+#include <ESP32Servo.h>
 #include <ArduinoJson.h>
 
 // Wi-Fi credentials
@@ -13,8 +13,8 @@ const int websocket_port = 8080;
 const char *websocket_path = "/";
 
 // Motor driver control pins for stepper motor
-const int STEP_PIN = 8;    // Pin to send step pulses to the motor driver
-const int DIR_PIN = 9;     // Pin to set direction of stepper motor rotation
+const int STEP_PIN = 8; // Pin to send step pulses to the motor driver
+const int DIR_PIN = 9;  // Pin to set direction of stepper motor rotation
 const int SERVO_PIN = 6;
 const int PEN_PIN = 7;
 
@@ -29,26 +29,32 @@ float currentTheta2 = 0.0;
 WebSocketsClient webSocket;
 
 // Function to control stepper motor via motor driver
-void moveStepper(float targetTheta1) {
+void moveStepper(float targetTheta1)
+{
   // Determine the direction to move (forward or backward)
-  if (targetTheta1 > currentTheta1) {
+  if (targetTheta1 > currentTheta1)
+  {
     digitalWrite(DIR_PIN, HIGH); // Forward
-  } else {
-    digitalWrite(DIR_PIN, LOW);  // Backward
+  }
+  else
+  {
+    digitalWrite(DIR_PIN, LOW); // Backward
   }
 
   // Calculate how many steps to take (difference between current and target angles)
   int steps = abs(targetTheta1 - currentTheta1) * 10; // Adjust based on your stepper's steps per degree
 
   // Send pulses to STEP_PIN to move the motor
-  for (int i = 0; i < steps; i++) {
+  for (int i = 0; i < steps; i++)
+  {
     digitalWrite(STEP_PIN, HIGH);
     delayMicroseconds(1000); // Adjust delay for speed (e.g., 1000 µs = 1 ms)
     digitalWrite(STEP_PIN, LOW);
     delayMicroseconds(1000);
 
     // Add yield() to allow the system to handle background tasks and avoid WDT resets
-    if (i % 50 == 0) { // Yield every 50 steps to avoid long blocking
+    if (i % 50 == 0)
+    { // Yield every 50 steps to avoid long blocking
       yield();
     }
   }
@@ -58,16 +64,21 @@ void moveStepper(float targetTheta1) {
 }
 
 // Pen movement: true = down, false = up
-void movePen(bool penState) {
-  if (penState) {
-    penServo.write(180);  // Move pen down
-  } else {
-    penServo.write(0);    // Move pen up
+void movePen(bool penState)
+{
+  if (penState)
+  {
+    penServo.write(180); // Move pen down
+  }
+  else
+  {
+    penServo.write(0); // Move pen up
   }
 }
 
 // Smooth movement function for stepper (theta1) and servo (theta2)
-void moveTo(float targetTheta1, float targetTheta2, bool penState) {
+void moveTo(float targetTheta1, float targetTheta2, bool penState)
+{
   // Move pen first
   movePen(penState);
 
@@ -75,11 +86,15 @@ void moveTo(float targetTheta1, float targetTheta2, bool penState) {
   moveStepper(targetTheta1);
 
   // Smoothly move theta2 (servo)
-  while (currentTheta2 != targetTheta2) {
-    if (currentTheta2 < targetTheta2) {
+  while (currentTheta2 != targetTheta2)
+  {
+    if (currentTheta2 < targetTheta2)
+    {
       currentTheta2 += 0.5;
       servoTheta2.write(currentTheta2); // Gradually update servo position
-    } else if (currentTheta2 > targetTheta2) {
+    }
+    else if (currentTheta2 > targetTheta2)
+    {
       currentTheta2 -= 0.5;
       servoTheta2.write(currentTheta2); // Gradually update servo position
     }
@@ -97,8 +112,8 @@ void setup()
   pinMode(DIR_PIN, OUTPUT);
 
   // Attach servos for theta2 and pen control using ESP32Servo
-  servoTheta2.attach(SERVO_PIN);  // Attach theta2 servo to pin 6
-  penServo.attach(PEN_PIN);     // Attach pen servo to pin 7
+  servoTheta2.attach(SERVO_PIN); // Attach theta2 servo to pin 6
+  penServo.attach(PEN_PIN);      // Attach pen servo to pin 7
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -168,14 +183,13 @@ void handleReceivedMessage(uint8_t *payload, size_t length)
   }
 
   const char *id = doc["id"];
-  JsonArray data = doc["data"];
-
-  // Iterate through each movement in the data array
-  for (JsonObject movement : data)
+  if (strcmp(id, "ARM") == 0)
   {
-    float theta1 = movement["theta1"];
-    float theta2 = movement["theta2"];
-    bool pen = movement["pen"];
+    JsonObject data = doc["data"];
+
+    float theta1 = data["theta1"];
+    float theta2 = data["theta2"];
+    bool pen = data["pen"];
 
     Serial.printf("Moving to theta1: %f, theta2: %f, pen: %s\n", theta1, theta2, pen ? "true" : "false");
 

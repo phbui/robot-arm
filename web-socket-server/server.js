@@ -65,7 +65,7 @@ wss.on("connection", (ws) => {
     if (messageData.id === "DRAWING" && Array.isArray(messageData.data)) {
       const drawingData = messageData.data;
 
-      drawingData.forEach((line) => {
+      drawingData.forEach((line, lineIndex) => {
         line.points.forEach((point, index) => {
           if (index % 2 === 0) {
             const x = line.points[index];
@@ -106,6 +106,17 @@ wss.on("connection", (ws) => {
             }
           }
         });
+
+        // Send pen up command after the last line in the batch
+        if (
+          lineIndex === drawingData.length - 1 &&
+          connections.arm &&
+          connections.arm.readyState === WebSocket.OPEN
+        ) {
+          sendMessage(connections.arm, "ARM", "Pen up", {
+            pen: false, // Lift the pen after the drawing
+          });
+        }
       });
     } else if (messageData.id === "ARM") {
       // Store the ARM connection
