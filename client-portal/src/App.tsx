@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { Stage, Layer, Line } from "react-konva";
 import "./assets/css/App.css";
 
+// Helper function to calculate the distance between two points
+const distance = (x1: number, y1: number, x2: number, y2: number) => {
+  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+};
+
+const SCALE_FACTOR = 50; // Scaling factor for both x and y
+
 const App: React.FC = () => {
   const [status, setStatus] = useState<string>("Not connected");
   const [armStatus, setArmStatus] = useState<string>("ARM not connected");
@@ -51,7 +58,10 @@ const App: React.FC = () => {
   const handleMouseDown = (event: any) => {
     isDrawing.current = true;
     const pos = event.target.getStage().getPointerPosition();
-    const newLine = { points: [pos.x, pos.y] }; // Start new line
+
+    // Scale the initial point
+    const scaledPos = { x: pos.x / SCALE_FACTOR, y: pos.y / SCALE_FACTOR };
+    const newLine = { points: [scaledPos.x, scaledPos.y] }; // Start new line
     setCurrentLine(newLine); // Track the current new line
     setLines((prevLines) => [...prevLines, newLine]); // Add new line to all lines
   };
@@ -60,28 +70,36 @@ const App: React.FC = () => {
     if (!isDrawing.current || !currentLine) return;
     const stage = event.target.getStage();
     const point = stage.getPointerPosition();
-    const updatedLine = {
-      ...currentLine,
-      points: [...currentLine.points, point.x, point.y],
-    }; // Add new points to the current line
-    setCurrentLine(updatedLine); // Update the current line state
-    setLines((prevLines) => [
-      ...prevLines.slice(0, prevLines.length - 1),
-      updatedLine,
-    ]); // Replace the last line with the updated one
+
+    // Scale the point
+    const scaledPoint = {
+      x: point.x / SCALE_FACTOR,
+      y: point.y / SCALE_FACTOR,
+    };
+
+    const lastPointIndex = currentLine.points.length - 2; // Get last point
+    const lastX = currentLine.points[lastPointIndex];
+    const lastY = currentLine.points[lastPointIndex + 1];
+
+    // Only add point if the distance is greater than the threshold (e.g., 5 pixels)
+    if (distance(lastX, lastY, scaledPoint.x, scaledPoint.y) > 0.1) {
+      const updatedLine = {
+        ...currentLine,
+        points: [...currentLine.points, scaledPoint.x, scaledPoint.y],
+      }; // Add new points to the current line
+      setCurrentLine(updatedLine); // Update the current line state
+      setLines((prevLines) => [
+        ...prevLines.slice(0, prevLines.length - 1),
+        updatedLine,
+      ]); // Replace the last line with the updated one
+    }
   };
 
   const handleMouseUp = () => {
     isDrawing.current = false;
     if (socket && socket.readyState === WebSocket.OPEN && currentLine) {
-      // Scale down points by a factor of 50 before sending to the server
-      const scaledLine = {
-        points: currentLine.points.map(
-          (point, index) => (index % 2 === 0 ? point / 50 : point / 50) // Scale both x and y
-        ),
-      };
-      console.log("Scaled Line:", scaledLine);
-      socket.send(JSON.stringify({ id: "DRAWING", data: [scaledLine] })); // Send only the scaled line
+      console.log("Scaled Line:", currentLine);
+      socket.send(JSON.stringify({ id: "DRAWING", data: [currentLine] })); // Send only the scaled line
     }
     setCurrentLine(null); // Reset current line after sending
   };
@@ -137,7 +155,7 @@ const App: React.FC = () => {
             {lines.map((line, i) => (
               <Line
                 key={i}
-                points={line.points}
+                points={line.points.map((p) => p * SCALE_FACTOR)} // Scale points back for display
                 stroke="black"
                 strokeWidth={2}
               />
