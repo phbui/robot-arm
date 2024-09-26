@@ -11,10 +11,6 @@ const l2y = 0.5;
 const l1z = Math.sqrt(l1x * l1x + l1y * l1y);
 const l2z = Math.sqrt(l2x * l2x + l2y * l2y);
 
-// Define the workspace limits
-const rMin = Math.abs(l1z - l2z); // Minimum reach of the arm
-const rMax = l1z + l2z; // Maximum reach of the arm
-
 // Helper function to round to 2 decimal places
 function roundToTwoDecimals(value) {
   return Math.round(value * 100) / 100;

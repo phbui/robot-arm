@@ -2,7 +2,7 @@
 #include <WebSocketsClient.h>
 #include <ESP32Servo.h>
 #include <ArduinoJson.h>
-#include <queue>  // Include queue library for command queue
+#include <queue> // Include queue library for command queue
 
 // Wi-Fi credentials
 const char *ssid = "Phi";
@@ -14,13 +14,13 @@ const int websocket_port = 8080;
 const char *websocket_path = "/";
 
 // Motor driver control pins for stepper motor
-const int STEP_PIN = 33; 
-const int DIR_PIN = 25; 
+const int STEP_PIN = 33;
+const int DIR_PIN = 25;
 const int SERVO_PIN = 19;
-const int PEN_PIN = 18;   
+const int PEN_PIN = 18;
 
 // LED pin (Blue light to indicate WebSocket connection)
-const int LED_PIN = 2; 
+const int LED_PIN = 2;
 
 // Servo control for theta2 and pen
 Servo servoTheta2;
@@ -36,7 +36,8 @@ bool movingStepper = false;
 bool movingServo = false;
 
 // Define a struct to hold movement commands
-struct MovementCommand {
+struct MovementCommand
+{
   float theta1;
   float theta2;
   bool penState;
@@ -52,7 +53,8 @@ int currentStep = 0;
 int totalSteps = 0;
 
 // Function to log messages with timestamps
-void logMessage(const char* level, const char* message) {
+void logMessage(const char *level, const char *message)
+{
   Serial.print("[");
   Serial.print(millis());
   Serial.print("] ");
@@ -62,38 +64,42 @@ void logMessage(const char* level, const char* message) {
 }
 
 // Function to start stepper movement
-void startMoveStepper(float targetTheta1) {
+void startMoveStepper(float targetTheta1)
+{
   String message = "[Stepper] Starting move to theta1: " + String(targetTheta1) + " from currentTheta1: " + String(currentTheta1);
   logMessage("INFO", message.c_str());
 
   digitalWrite(DIR_PIN, targetTheta1 > currentTheta1 ? HIGH : LOW);
   totalSteps = abs(targetTheta1 - currentTheta1) * 10;
   currentStep = 0;
-  movingStepper = totalSteps > 0 ;
+  movingStepper = totalSteps > 0;
 
   message = "[Stepper] Total Steps to Move: " + String(totalSteps);
   logMessage("INFO", message.c_str());
 }
 
 // Function to handle stepper movement updates
-void updateStepper() {
+void updateStepper()
+{
   String message;
 
-  if (movingStepper && currentStep < totalSteps) {
+  if (movingStepper && currentStep < totalSteps)
+  {
     digitalWrite(STEP_PIN, HIGH);
     delayMicroseconds(1000); // Adjust delay for speed
     digitalWrite(STEP_PIN, LOW);
     delayMicroseconds(1000);
     currentStep++;
 
-    // logMessage("DEBUG", "Updating stepper movement...");
-    // message = "Current Step: " + String(currentStep);
-    // logMessage("DEBUG", message.c_str());
+    logMessage("DEBUG", "Updating stepper movement...");
+    message = "Current Step: " + String(currentStep);
+    logMessage("DEBUG", message.c_str());
 
-    if (currentStep >= totalSteps) {
+    if (currentStep >= totalSteps)
+    {
       movingStepper = false;
       currentTheta1 = (totalSteps / 10.0) * (digitalRead(DIR_PIN) == HIGH ? 1 : -1) + currentTheta1;
-        
+
       message = "[Stepper] Movement Completed, newTheta1: " + String(currentTheta1);
       logMessage("INFO", message.c_str());
       // Serial.println(String(movingStepper).c_str());
@@ -105,7 +111,8 @@ void updateStepper() {
 }
 
 // Function to start servo movement
-void startMoveServo(float targetTheta2) {
+void startMoveServo(float targetTheta2)
+{
   String message = "[Servo] Starting move to theta2: " + String(targetTheta2) + " from currentTheta2: " + String(currentTheta2);
   logMessage("INFO", message.c_str());
 
@@ -114,10 +121,12 @@ void startMoveServo(float targetTheta2) {
 }
 
 // Function to handle servo movement updates
-void updateServo() {
+void updateServo()
+{
   String message;
 
-  if (movingServo && currentTheta2 != targetServoTheta) {
+  if (movingServo && currentTheta2 != targetServoTheta)
+  {
     currentTheta2 += (currentTheta2 < targetServoTheta) ? 0.5 : -0.5;
     servoTheta2.write(currentTheta2);
     delay(20);
@@ -126,7 +135,8 @@ void updateServo() {
     // message = "Current Theta2: " + String(currentTheta2);
     // logMessage("DEBUG", message.c_str());
 
-    if (abs(currentTheta2 - targetServoTheta) < 0.5) {
+    if (abs(currentTheta2 - targetServoTheta) < 0.5)
+    {
       currentTheta2 = targetServoTheta;
       movingServo = false;
 
@@ -141,13 +151,15 @@ void updateServo() {
 }
 
 // Function to move the pen
-void movePen(bool penState) {
+void movePen(bool penState)
+{
   penServo.write(penState ? 0 : 180);
   logMessage("INFO", penState ? "Pen moved down." : "Pen moved up.");
 }
 
 // Function to start both stepper and servo movements
-void startMoveTo(float targetTheta1, float targetTheta2, bool penState) {
+void startMoveTo(float targetTheta1, float targetTheta2, bool penState)
+{
   String message = "[Movement] Starting move to theta1: " + String(targetTheta1) + ", theta2: " + String(targetTheta2) + ", penState: " + (penState ? "true" : "false");
   logMessage("INFO", message.c_str());
 
@@ -157,55 +169,62 @@ void startMoveTo(float targetTheta1, float targetTheta2, bool penState) {
 }
 
 // WebSocket event handler
-void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
-  switch (type) {
-    case WStype_DISCONNECTED:
-      logMessage("ERROR", "Disconnected from server.");
-      digitalWrite(LED_PIN, LOW);
-      break;
-    case WStype_CONNECTED:
-      logMessage("INFO", "Connected to server.");
-      webSocket.sendTXT("{\"id\": \"ARM\"}");
-      digitalWrite(LED_PIN, HIGH);
-      break;
-    case WStype_TEXT: {
-      String message = "[WebSocket] Received message: " + String((char*)payload);
-      logMessage("INFO", message.c_str());
-      handleReceivedMessage(payload, length);
-      break;
-    }
-    case WStype_ERROR:
-      logMessage("ERROR", "WebSocket Error occurred.");
-      break;
-    default:
-      break;
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
+{
+  switch (type)
+  {
+  case WStype_DISCONNECTED:
+    logMessage("ERROR", "Disconnected from server.");
+    digitalWrite(LED_PIN, LOW);
+    break;
+  case WStype_CONNECTED:
+    logMessage("INFO", "Connected to server.");
+    webSocket.sendTXT("{\"id\": \"ARM\"}");
+    digitalWrite(LED_PIN, HIGH);
+    break;
+  case WStype_TEXT:
+  {
+    String message = "[WebSocket] Received message: " + String((char *)payload);
+    logMessage("INFO", message.c_str());
+    handleReceivedMessage(payload, length);
+    break;
+  }
+  case WStype_ERROR:
+    logMessage("ERROR", "WebSocket Error occurred.");
+    break;
+  default:
+    break;
   }
 }
 
 // Function to handle received messages via WebSocket
-void handleReceivedMessage(uint8_t *payload, size_t length) {
+void handleReceivedMessage(uint8_t *payload, size_t length)
+{
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, payload);
 
-  if (error) {
+  if (error)
+  {
     logMessage("ERROR", "Failed to deserialize JSON.");
     return;
   }
 
   const char *id = doc["id"];
-  if (strcmp(id, "ARM") == 0) {
+  if (strcmp(id, "ARM") == 0)
+  {
     JsonObject data = doc["data"];
     float theta1 = data["theta1"];
     float theta2 = data["theta2"];
     bool pen = data["pen"];
-    commandQueue.push({ theta1, theta2, pen });
+    commandQueue.push({theta1, theta2, pen});
 
     String message = "[Queue] Queued movement - Theta1: " + String(theta1) + ", Theta2: " + String(theta2) + ", Pen: " + (pen ? "true" : "false");
     logMessage("INFO", message.c_str());
   }
 }
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
 
   pinMode(STEP_PIN, OUTPUT);
@@ -218,7 +237,8 @@ void setup() {
 
   logMessage("INFO", "Connecting to WiFi...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     logMessage("DEBUG", "Waiting for WiFi connection...");
   }
@@ -230,7 +250,8 @@ void setup() {
   webSocket.setReconnectInterval(5000);
 }
 
-void loop() {
+void loop()
+{
   webSocket.loop();
 
   // Serial.println("Stepper Moving: ");
@@ -239,24 +260,30 @@ void loop() {
   // Serial.println(String(movingServo).c_str());
 
   // Check if the motors are not moving
-  if (!movingStepper && !movingServo) {
+  if (!movingStepper && !movingServo)
+  {
     // If there are commands in the queue, process the next one
-    if (!commandQueue.empty()) {
+    if (!commandQueue.empty())
+    {
       MovementCommand cmd = commandQueue.front();
       commandQueue.pop();
       logMessage("INFO", "Processing next queued movement...");
       startMoveTo(cmd.theta1, cmd.theta2, cmd.penState);
-    } else {
-      //logMessage("INFO", "No more commands, nothing to do.");
+    }
+    else
+    {
+      // logMessage("INFO", "No more commands, nothing to do.");
     }
   }
 
   // Continuously update the stepper and servo movements
-  if (movingStepper) {
+  if (movingStepper)
+  {
     updateStepper();
   }
-  
-  if (movingServo) {
+
+  if (movingServo)
+  {
     updateServo();
   }
 }
