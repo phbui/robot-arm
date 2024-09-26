@@ -20,22 +20,6 @@ function roundToTwoDecimals(value) {
   return Math.round(value * 100) / 100;
 }
 
-// Function to apply bounds to a point (x, y)
-function applyBoundsToPoint(x, y) {
-  // Convert to polar coordinates
-  const r = Math.sqrt(x * x + y * y);
-  const theta = Math.atan2(y, x);
-
-  // Clamp the radius to be within the robot arm's limits
-  const rNew = Math.max(rMin, Math.min(r, rMax));
-
-  // Convert back to Cartesian coordinates and round to 2 decimal places
-  const xNew = roundToTwoDecimals(rNew * Math.cos(theta));
-  const yNew = roundToTwoDecimals(rNew * Math.sin(theta));
-
-  return { x: xNew, y: yNew };
-}
-
 // Kinematics calculation function
 function calculateAngles(x, y) {
   // Calculate the angles (offsets) for the links
@@ -121,13 +105,10 @@ wss.on("connection", (ws) => {
             const x = line.points[index];
             const y = line.points[index + 1];
 
-            // Apply bounds to the point and round to 2 decimal places
-            const { x: boundedX, y: boundedY } = applyBoundsToPoint(x, y);
-
             // Calculate the angles for the robot arm and round to 2 decimal places
-            const angles = calculateAngles(boundedX, boundedY);
+            const angles = calculateAngles(x, y);
             console.log(
-              `Coordinates: (${boundedX}, ${boundedY}) => Angles: ${angles.theta1}, ${angles.theta2}`
+              `Coordinates: (${x}, ${y}) => Angles: ${angles.theta1}, ${angles.theta2}`
             );
 
             // Send the calculated angles to ARM
@@ -156,7 +137,7 @@ wss.on("connection", (ws) => {
               sendMessage(
                 connections.client,
                 "SYSTEM",
-                `Calculated angles for (${boundedX}, ${boundedY})`,
+                `Calculated angles for (${x}, ${y})`,
                 {
                   theta1: angles.theta1,
                   theta2: angles.theta2,

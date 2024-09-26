@@ -14,7 +14,7 @@ const int websocket_port = 8080;
 const char *websocket_path = "/";
 
 // Motor driver control pins for stepper motor
-const int STEP_PIN = 26; 
+const int STEP_PIN = 33; 
 const int DIR_PIN = 25; 
 const int SERVO_PIN = 19;
 const int PEN_PIN = 18;   
