@@ -14,26 +14,22 @@ const int websocket_port = 8080;
 const char *websocket_path = "/";
 
 // Motor driver control pins for stepper motor
-const int STEP_PIN = 26; // BLUE
-const int DIR_PIN = 25; // RED
-const int SERVO_PIN = 19; // Servo control
-const int PEN_PIN = 18;   // Pen servo
+const int STEP_PIN = 26; 
+const int DIR_PIN = 25; 
+const int SERVO_PIN = 19;
+const int PEN_PIN = 18;   
 
 // LED pin (Blue light to indicate WebSocket connection)
-const int LED_PIN = 2; // Onboard LED for many ESP32 boards, use another pin if using an external LED
+const int LED_PIN = 2; 
 
 // Servo control for theta2 and pen
 Servo servoTheta2;
 Servo penServo;
 
-// Define home positions
-const float HOME_THETA1 = 0.0;  // Home position for stepper motor
-const float HOME_THETA2 = 0.0;  // Home position for servo
-
 // Variables for current positions
-float currentTheta1 = HOME_THETA1;
-float currentTheta2 = HOME_THETA2;
-float targetServoTheta = HOME_THETA2;
+float currentTheta1 = 0.0;
+float currentTheta2 = 0.0;
+float targetServoTheta = 0.0;
 
 // Movement status flags
 bool movingStepper = false;
@@ -73,7 +69,7 @@ void startMoveStepper(float targetTheta1) {
   digitalWrite(DIR_PIN, targetTheta1 > currentTheta1 ? HIGH : LOW);
   totalSteps = abs(targetTheta1 - currentTheta1) * 10;
   currentStep = 0;
-  movingStepper = true;
+  movingStepper = totalSteps > 0 ;
 
   message = "[Stepper] Total Steps to Move: " + String(totalSteps);
   logMessage("INFO", message.c_str());
@@ -90,9 +86,9 @@ void updateStepper() {
     delayMicroseconds(1000);
     currentStep++;
 
-    //logMessage("DEBUG", "Updating stepper movement...");
-    //message = "Current Step: " + String(currentStep);
-    //logMessage("DEBUG", message.c_str());
+    logMessage("DEBUG", "Updating stepper movement...");
+    message = "Current Step: " + String(currentStep);
+    logMessage("DEBUG", message.c_str());
 
     if (currentStep >= totalSteps) {
       movingStepper = false;
@@ -100,10 +96,10 @@ void updateStepper() {
         
       message = "[Stepper] Movement Completed, newTheta1: " + String(currentTheta1);
       logMessage("INFO", message.c_str());
-      Serial.println(String(movingStepper).c_str());
-      Serial.println(String(movingServo).c_str());
-      Serial.println(String(currentStep).c_str());
-      Serial.println(String(totalSteps).c_str());
+      // Serial.println(String(movingStepper).c_str());
+      // Serial.println(String(movingServo).c_str());
+      // Serial.println(String(currentStep).c_str());
+      // Serial.println(String(totalSteps).c_str());
     }
   }
 }
@@ -126,9 +122,9 @@ void updateServo() {
     servoTheta2.write(currentTheta2);
     delay(20);
 
-    //logMessage("DEBUG", "Updating servo movement...");
-    //message = "Current Theta2: " + String(currentTheta2);
-    //logMessage("DEBUG", message.c_str());
+    // logMessage("DEBUG", "Updating servo movement...");
+    // message = "Current Theta2: " + String(currentTheta2);
+    // logMessage("DEBUG", message.c_str());
 
     if (abs(currentTheta2 - targetServoTheta) < 0.5) {
       currentTheta2 = targetServoTheta;
@@ -136,10 +132,10 @@ void updateServo() {
 
       message = "[Servo] Movement Completed, newTheta2: " + String(currentTheta2);
       logMessage("INFO", message.c_str());
-      Serial.println(String(movingStepper).c_str());
-      Serial.println(String(movingServo).c_str());
-      Serial.println(String(currentTheta2).c_str());
-      Serial.println(String(targetServoTheta).c_str());
+      // Serial.println(String(movingStepper).c_str());
+      // Serial.println(String(movingServo).c_str());
+      // Serial.println(String(currentTheta2).c_str());
+      // Serial.println(String(targetServoTheta).c_str());
     }
   }
 }
@@ -236,6 +232,11 @@ void setup() {
 
 void loop() {
   webSocket.loop();
+
+  // Serial.println("Stepper Moving: ");
+  // Serial.println(String(movingStepper).c_str());
+  // Serial.println("Servo Moving: ");
+  // Serial.println(String(movingServo).c_str());
 
   // Check if the motors are not moving
   if (!movingStepper && !movingServo) {
