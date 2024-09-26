@@ -86,9 +86,9 @@ void updateStepper() {
     delayMicroseconds(1000);
     currentStep++;
 
-    logMessage("DEBUG", "Updating stepper movement...");
-    message = "Current Step: " + String(currentStep);
-    logMessage("DEBUG", message.c_str());
+    // logMessage("DEBUG", "Updating stepper movement...");
+    // message = "Current Step: " + String(currentStep);
+    // logMessage("DEBUG", message.c_str());
 
     if (currentStep >= totalSteps) {
       movingStepper = false;
@@ -142,7 +142,7 @@ void updateServo() {
 
 // Function to move the pen
 void movePen(bool penState) {
-  penServo.write(penState ? 180 : 0);
+  penServo.write(penState ? 0 : 180);
   logMessage("INFO", penState ? "Pen moved down." : "Pen moved up.");
 }
 
