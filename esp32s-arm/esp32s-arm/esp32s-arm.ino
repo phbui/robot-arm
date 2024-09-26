@@ -33,11 +33,11 @@ const float HOME_THETA2 = 0.0;  // Home position for servo
 // Variables for current positions
 float currentTheta1 = HOME_THETA1;
 float currentTheta2 = HOME_THETA2;
+float targetServoTheta = HOME_THETA2;
 
 // Movement status flags
 bool movingStepper = false;
 bool movingServo = false;
-bool returningToHome = false;  // Flag to indicate when returning to home
 
 // Define a struct to hold movement commands
 struct MovementCommand {
@@ -55,22 +55,37 @@ WebSocketsClient webSocket;
 int currentStep = 0;
 int totalSteps = 0;
 
+// Function to log messages with timestamps
+void logMessage(const char* level, const char* message) {
+  Serial.print("[");
+  Serial.print(millis());
+  Serial.print("] ");
+  Serial.print(level);
+  Serial.print(": ");
+  Serial.println(message);
+}
+
 // Function to return both the stepper and servo to their home positions
 void returnToHome() {
-  Serial.println("[Movement] Returning to home positions...");
+  logMessage("INFO", "Returning to home positions...");
   startMoveStepper(HOME_THETA1);
   startMoveServo(HOME_THETA2);
-  returningToHome = true;  // Set flag to true while returning to home
 }
 
 // Function to start stepper movement
 void startMoveStepper(float targetTheta1) {
-  Serial.printf("[Stepper] Starting move to theta1: %.2f from currentTheta1: %.2f\\n", targetTheta1, currentTheta1);
+  Serial.print("[Stepper] Starting move to theta1: ");
+  Serial.print(targetTheta1);
+  Serial.print(" from currentTheta1: ");
+  Serial.println(currentTheta1);
+  
   digitalWrite(DIR_PIN, targetTheta1 > currentTheta1 ? HIGH : LOW);
   totalSteps = abs(targetTheta1 - currentTheta1) * 10;
   currentStep = 0;
   movingStepper = true;
-  Serial.printf("[Stepper] Total Steps to Move: %d\\n", totalSteps);
+
+  Serial.print("[Stepper] Total Steps to Move: ");
+  Serial.println(totalSteps);
 }
 
 // Function to handle stepper movement updates
@@ -81,56 +96,73 @@ void updateStepper() {
     digitalWrite(STEP_PIN, LOW);
     delayMicroseconds(1000);
     currentStep++;
-    
+
     if (currentStep >= totalSteps) {
       movingStepper = false;
       currentTheta1 = (totalSteps / 10.0) * (digitalRead(DIR_PIN) == HIGH ? 1 : -1) + currentTheta1;
-      Serial.printf("[Stepper] Movement Completed, newTheta1: %.2f\\n", currentTheta1);
-
-      if (returningToHome && !movingServo) {
-        returningToHome = false;
-        Serial.println("[Movement] Returned to home.");
-      }
+      
+      Serial.print("[Stepper] Movement Completed, newTheta1: ");
+      Serial.println(currentTheta1);
     }
   }
 }
 
 // Function to start servo movement
 void startMoveServo(float targetTheta2) {
-  Serial.printf("[Servo] Starting move to theta2: %.2f from currentTheta2: %.2f\\n", targetTheta2, currentTheta2);
+  Serial.print("[Servo] Starting move to theta2: ");
+  Serial.print(targetTheta2);
+  Serial.print(" from currentTheta2: ");
+  Serial.println(currentTheta2);
+
   targetServoTheta = targetTheta2;
   movingServo = true;
 }
 
 // Function to handle servo movement updates
 void updateServo() {
+
+  if (abs(currentTheta2 - targetServoTheta) < 0.5) {
+    currentTheta2 = targetServoTheta;
+    movingServo = false;
+
+    Serial.print("[Servo] Movement Completed, newTheta2: ");
+    Serial.println(currentTheta2);      
+    Serial.println(movingServo);     
+    Serial.println(movingStepper);       
+  }
+
   if (movingServo && currentTheta2 != targetServoTheta) {
     currentTheta2 += (currentTheta2 < targetServoTheta) ? 0.5 : -0.5;
     servoTheta2.write(currentTheta2);
     delay(20);
-    
-    if (abs(currentTheta2 - targetServoTheta) < 0.5) {
-      currentTheta2 = targetServoTheta;
-      movingServo = false;
-      Serial.printf("[Servo] Movement Completed, newTheta2: %.2f\\n", currentTheta2);
 
-      if (returningToHome && !movingStepper) {
-        returningToHome = false;
-        Serial.println("[Movement] Returned to home.");
-      }
-    }
+    Serial.print("[Servo] currentTheta2: ");
+    Serial.println(currentTheta2);
+
+    Serial.print("[Servo] targetServoTheta: ");
+    Serial.println(targetServoTheta);
   }
 }
 
 // Function to move the pen
 void movePen(bool penState) {
   penServo.write(penState ? 180 : 0);
-  Serial.println(penState ? "[Pen] Pen moved down." : "[Pen] Pen moved up.");
+  if (penState) {
+    logMessage("INFO", "Pen moved down.");
+  } else {
+    logMessage("INFO", "Pen moved up.");
+  }
 }
 
 // Function to start both stepper and servo movements
 void startMoveTo(float targetTheta1, float targetTheta2, bool penState) {
-  Serial.printf("[Movement] Starting move to theta1: %.2f, theta2: %.2f, penState: %s\\n", targetTheta1, targetTheta2, penState ? "true" : "false");
+  Serial.print("[Movement] Starting move to theta1: ");
+  Serial.print(targetTheta1);
+  Serial.print(", theta2: ");
+  Serial.print(targetTheta2);
+  Serial.print(", penState: ");
+  Serial.println(penState ? "true" : "false");
+
   movePen(penState);
   startMoveStepper(targetTheta1);
   startMoveServo(targetTheta2);
@@ -139,24 +171,25 @@ void startMoveTo(float targetTheta1, float targetTheta2, bool penState) {
 // WebSocket event handler
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
   switch (type) {
-  case WStype_DISCONNECTED:
-    Serial.println("[WebSocket] Disconnected from server.");
-    digitalWrite(LED_PIN, LOW);
-    break;
-  case WStype_CONNECTED:
-    Serial.println("[WebSocket] Connected to server.");
-    webSocket.sendTXT("{\"id\": \"ARM\"}");
-    digitalWrite(LED_PIN, HIGH);
-    break;
-  case WStype_TEXT:
-    Serial.printf("[WebSocket] Received message: %s\\n", payload);
-    handleReceivedMessage(payload, length);
-    break;
-  case WStype_ERROR:
-    Serial.println("[WebSocket] Error occurred.");
-    break;
-  default:
-    break;
+    case WStype_DISCONNECTED:
+      logMessage("ERROR", "Disconnected from server.");
+      digitalWrite(LED_PIN, LOW);
+      break;
+    case WStype_CONNECTED:
+      logMessage("INFO", "Connected to server.");
+      webSocket.sendTXT("{\"id\": \"ARM\"}");
+      digitalWrite(LED_PIN, HIGH);
+      break;
+    case WStype_TEXT:
+      Serial.print("[WebSocket] Received message: ");
+      Serial.println((char*)payload);
+      handleReceivedMessage(payload, length);
+      break;
+    case WStype_ERROR:
+      logMessage("ERROR", "WebSocket Error occurred.");
+      break;
+    default:
+      break;
   }
 }
 
@@ -166,8 +199,7 @@ void handleReceivedMessage(uint8_t *payload, size_t length) {
   DeserializationError error = deserializeJson(doc, payload);
 
   if (error) {
-    Serial.print("[JSON] Failed to deserialize: ");
-    Serial.println(error.f_str());
+    logMessage("ERROR", "Failed to deserialize JSON.");
     return;
   }
 
@@ -178,7 +210,13 @@ void handleReceivedMessage(uint8_t *payload, size_t length) {
     float theta2 = data["theta2"];
     bool pen = data["pen"];
     commandQueue.push({ theta1, theta2, pen });
-    Serial.printf("[Queue] Queued movement - Theta1: %.2f, Theta2: %.2f, Pen: %s\\n", theta1, theta2, pen ? "true" : "false");
+
+    Serial.print("[Queue] Queued movement - Theta1: ");
+    Serial.print(theta1);
+    Serial.print(", Theta2: ");
+    Serial.print(theta2);
+    Serial.print(", Pen: ");
+    Serial.println(pen ? "true" : "false");
   }
 }
 
@@ -193,33 +231,54 @@ void setup() {
   servoTheta2.attach(SERVO_PIN);
   penServo.attach(PEN_PIN);
 
-  Serial.println("[WiFi] Connecting...");
+  logMessage("INFO", "Connecting to WiFi...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\\n[WiFi] Connected");
+  logMessage("INFO", "WiFi Connected.");
 
-  Serial.println("[WebSocket] Initializing connection...");
+  logMessage("INFO", "Initializing WebSocket connection...");
   webSocket.begin(websocket_host, websocket_port, websocket_path);
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000);
 }
 
 void loop() {
+  // Call WebSocket loop
   webSocket.loop();
+  
 
-  if (!movingStepper && !movingServo && !returningToHome) {
+
+  // Check if the motors are not moving
+  if (!movingStepper && !movingServo) {
+    
+    // If there are commands in the queue, process the next one
     if (!commandQueue.empty()) {
       MovementCommand cmd = commandQueue.front();
       commandQueue.pop();
+      logMessage("INFO", "Processing next queued movement...");
       startMoveTo(cmd.theta1, cmd.theta2, cmd.penState);
+      
     } else {
-      returnToHome();
+      // No more commands, return to home
+      if (currentTheta1 != HOME_THETA1 || currentTheta2 != HOME_THETA2) {
+        logMessage("INFO", "No more commands, returning to home position...");
+        returnToHome();
+      } else {
+        logMessage("INFO", "Already at home position, nothing to do.");
+      }
     }
   }
 
-  updateStepper();
-  updateServo();
+  // Continuously update the stepper and servo movements
+  if (movingStepper) {
+    updateStepper();
+  }
+  
+  if (movingServo) {
+    updateServo();
+  }
 }
+
