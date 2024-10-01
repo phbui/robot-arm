@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
+#include <queue>  // Include queue library for command queue
 
 // Wi-Fi credentials
 const char *ssid = "Phi";
@@ -27,6 +28,9 @@ bool movingStepper = false;
 unsigned long lastStepTime = 0;
 unsigned long stepInterval = 1000;  // Step interval in microseconds (adjust for speed)
 
+// Command queue to hold movement commands
+std::queue<float> commandQueue;
+
 // Function to log messages with timestamps
 void logMessage(const char *level, const char *message)
 {
@@ -41,9 +45,9 @@ void logMessage(const char *level, const char *message)
 // Function to start stepper movement
 void startMoveStepper(float targetTheta)
 {
-  // Prevent new movements if the stepper is already moving
   if (movingStepper) {
-    logMessage("INFO", "Stepper is still moving, rejecting new command.");
+    logMessage("INFO", "Stepper is still moving, adding new command to the queue.");
+    commandQueue.push(targetTheta);  // Add new command to queue
     return;
   }
 
@@ -75,7 +79,7 @@ void updateStepperNonBlocking()
 
       // Generate a step pulse
       digitalWrite(STEP_PIN, HIGH);
-      delayMicroseconds(400);  // Ensure pulse is wide enough (increase if needed)
+      delayMicroseconds(10);  // Ensure pulse is wide enough (increase if needed)
       digitalWrite(STEP_PIN, LOW);
 
       // Increment step count
@@ -88,6 +92,13 @@ void updateStepperNonBlocking()
         currentTheta1 += totalSteps * (digitalRead(DIR_PIN) == HIGH ? 0.9 : -0.9);  // Update theta based on 0.9 degree steps
 
         logMessage("INFO", String("[Stepper] Movement Completed, newTheta1: " + String(currentTheta1)).c_str());
+
+        // Process the next command in the queue, if any
+        if (!commandQueue.empty()) {
+          float nextTheta = commandQueue.front();
+          commandQueue.pop();
+          startMoveStepper(nextTheta);
+        }
       }
     }
   }
@@ -140,7 +151,7 @@ void handleReceivedMessage(uint8_t *payload, size_t length)
     JsonObject data = doc["data"];
     float theta1 = data["theta1"];
 
-    // Start stepper movement for theta1
+    // Start stepper movement for theta1 (queue if already moving)
     startMoveStepper(theta1);
   }
 }
