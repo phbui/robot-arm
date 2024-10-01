@@ -13,14 +13,17 @@ const char *websocket_path = "/";
 const int STEP_PIN = 33;
 const int DIR_PIN = 25;
 const int SERVO_PIN = 19;
+const int PEN_PIN = 18;
 const int LED_PIN = 2;
 
 WebSocketsClient webSocket;
 Servo servoTheta2;
+Servo penServo;
 
 float currentTheta1 = 0.0;
 float targetTheta1 = 0.0;
 float currentTheta2 = 0.0;
+bool penState = false;
 int totalSteps = 0;
 int currentStep = 0;
 bool movingStepper = false;
@@ -28,14 +31,14 @@ bool movingServo = false;
 unsigned long lastStepTime = 0;
 unsigned long stepInterval = 1000;
 unsigned long servoMoveStartTime = 0;
-unsigned long servoMoveDuration = 0;  // Time for the servo to move
+unsigned long servoMoveDuration = 0;
 
-// MG9963 servo speed: 0.3 seconds per 60 degrees
-const float timePerDegree = 5;  // 5 milliseconds per degree
+const float timePerDegree = 5;
 
 struct MovementCommand {
   float theta1;
   float theta2;
+  bool pen;
 };
 std::queue<MovementCommand> commandQueue;
 
@@ -48,10 +51,15 @@ void logMessage(const char *level, const char *message) {
   Serial.println(message);
 }
 
-void startMoveTo(float targetTheta1, float targetTheta2) {
+void movePen(bool state) {
+  penServo.write(state ? 0 : 180);
+  penState = state;
+}
+
+void startMoveTo(float targetTheta1, float targetTheta2, bool pen) {
   if (movingStepper || movingServo) {
     logMessage("INFO", "Motors are still moving, adding new command to the queue.");
-    commandQueue.push({targetTheta1, targetTheta2});
+    commandQueue.push({targetTheta1, targetTheta2, pen});
     return;
   }
 
@@ -63,14 +71,15 @@ void startMoveTo(float targetTheta1, float targetTheta2) {
   movingStepper = totalSteps > 0;
   lastStepTime = micros();
 
-
-  float angleDifference = abs(targetTheta2 - currentTheta2); 
-  servoMoveDuration = angleDifference * timePerDegree;  
+  float angleDifference = abs(targetTheta2 - currentTheta2);
+  servoMoveDuration = angleDifference * timePerDegree;
   currentTheta2 = targetTheta2;
   servoTheta2.write(currentTheta2);
   movingServo = true;
-  servoMoveStartTime = millis();  
   logMessage("INFO", String("[Servo] Moving to theta2: " + String(currentTheta2) + " over " + String(servoMoveDuration) + " ms").c_str());
+  servoMoveStartTime = millis();
+
+  movePen(pen);
 }
 
 void updateStepperNonBlocking() {
@@ -105,7 +114,7 @@ void checkMovementCompletion() {
   if (!movingStepper && !movingServo && !commandQueue.empty()) {
     MovementCommand nextCommand = commandQueue.front();
     commandQueue.pop();
-    startMoveTo(nextCommand.theta1, nextCommand.theta2);
+    startMoveTo(nextCommand.theta1, nextCommand.theta2, nextCommand.pen);
   }
 }
 
@@ -147,8 +156,9 @@ void handleReceivedMessage(uint8_t *payload, size_t length) {
     JsonObject data = doc["data"];
     float theta1 = data["theta1"];
     float theta2 = data["theta2"];
+    bool pen = data["pen"];
 
-    startMoveTo(theta1, theta2);
+    startMoveTo(theta1, theta2, pen);
   }
 }
 
@@ -159,7 +169,9 @@ void setup() {
   pinMode(DIR_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+  
   servoTheta2.attach(SERVO_PIN);
+  penServo.attach(PEN_PIN);
 
   logMessage("INFO", "Connecting to WiFi...");
   WiFi.begin(ssid, password);
