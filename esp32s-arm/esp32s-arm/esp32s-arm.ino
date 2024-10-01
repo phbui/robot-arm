@@ -1,39 +1,45 @@
 #include <WiFi.h>
 #include <WebSocketsClient.h>
 #include <ArduinoJson.h>
-#include <queue>  // Include queue library for command queue
+#include <queue>
+#include <ESP32Servo.h>
 
-// Wi-Fi credentials
 const char *ssid = "Phi";
 const char *password = "lukaspark";
-
-// WebSocket server details
 const char *websocket_host = "172.20.10.11";
 const int websocket_port = 8080;
 const char *websocket_path = "/";
 
-// Motor driver control pins
 const int STEP_PIN = 33;
 const int DIR_PIN = 25;
-const int LED_PIN = 2;  // LED pin to indicate WebSocket connection
+const int SERVO_PIN = 19;
+const int LED_PIN = 2;
 
 WebSocketsClient webSocket;
+Servo servoTheta2;
 
-// Stepper control variables
 float currentTheta1 = 0.0;
 float targetTheta1 = 0.0;
+float currentTheta2 = 0.0;
 int totalSteps = 0;
 int currentStep = 0;
 bool movingStepper = false;
+bool movingServo = false;
 unsigned long lastStepTime = 0;
-unsigned long stepInterval = 1000;  // Step interval in microseconds (adjust for speed)
+unsigned long stepInterval = 1000;
+unsigned long servoMoveStartTime = 0;
+unsigned long servoMoveDuration = 0;  // Time for the servo to move
 
-// Command queue to hold movement commands
-std::queue<float> commandQueue;
+// MG9963 servo speed: 0.3 seconds per 60 degrees
+const float timePerDegree = 5;  // 5 milliseconds per degree
 
-// Function to log messages with timestamps
-void logMessage(const char *level, const char *message)
-{
+struct MovementCommand {
+  float theta1;
+  float theta2;
+};
+std::queue<MovementCommand> commandQueue;
+
+void logMessage(const char *level, const char *message) {
   Serial.print("[");
   Serial.print(millis());
   Serial.print("] ");
@@ -42,73 +48,71 @@ void logMessage(const char *level, const char *message)
   Serial.println(message);
 }
 
-// Function to start stepper movement
-void startMoveStepper(float targetTheta)
-{
-  if (movingStepper) {
-    logMessage("INFO", "Stepper is still moving, adding new command to the queue.");
-    commandQueue.push(targetTheta);  // Add new command to queue
+void startMoveTo(float targetTheta1, float targetTheta2) {
+  if (movingStepper || movingServo) {
+    logMessage("INFO", "Motors are still moving, adding new command to the queue.");
+    commandQueue.push({targetTheta1, targetTheta2});
     return;
   }
 
-  String message = "[Stepper] Starting move to theta1: " + String(targetTheta) + " from currentTheta1: " + String(currentTheta1);
-  logMessage("INFO", message.c_str());
+  digitalWrite(DIR_PIN, targetTheta1 > currentTheta1 ? HIGH : LOW);
+  logMessage("INFO", String("[Movement] Starting move to theta1: " + String(targetTheta1) + ", theta2: " + String(targetTheta2)).c_str());
 
-  // Set the direction of movement
-  digitalWrite(DIR_PIN, targetTheta > currentTheta1 ? HIGH : LOW);
-
-  // Calculate the number of steps (0.9 degrees per step for NEMA 17)
-  totalSteps = abs(targetTheta - currentTheta1) / 0.9; // Correct calculation for 0.9° steps
+  totalSteps = abs(targetTheta1 - currentTheta1) / 0.9;
   currentStep = 0;
   movingStepper = totalSteps > 0;
-  lastStepTime = micros();  // Initialize the timer
+  lastStepTime = micros();
 
-  message = "[Stepper] Total Steps to Move: " + String(totalSteps);
-  logMessage("INFO", message.c_str());
+
+  float angleDifference = abs(targetTheta2 - currentTheta2); 
+  servoMoveDuration = angleDifference * timePerDegree;  
+  currentTheta2 = targetTheta2;
+  servoTheta2.write(currentTheta2);
+  movingServo = true;
+  servoMoveStartTime = millis();  
+  logMessage("INFO", String("[Servo] Moving to theta2: " + String(currentTheta2) + " over " + String(servoMoveDuration) + " ms").c_str());
 }
 
-// Non-blocking stepper movement function
-void updateStepperNonBlocking()
-{
-  if (movingStepper && currentStep < totalSteps)
-  {
+void updateStepperNonBlocking() {
+  if (movingStepper && currentStep < totalSteps) {
     unsigned long currentTime = micros();
-    if (currentTime - lastStepTime >= stepInterval)
-    {
-      lastStepTime = currentTime;  // Update the last step time
+    if (currentTime - lastStepTime >= stepInterval) {
+      lastStepTime = currentTime;
 
-      // Generate a step pulse
       digitalWrite(STEP_PIN, HIGH);
-      delayMicroseconds(10);  // Ensure pulse is wide enough (increase if needed)
+      delayMicroseconds(10);
       digitalWrite(STEP_PIN, LOW);
 
-      // Increment step count
       currentStep++;
 
-      // Check if the movement is complete
-      if (currentStep >= totalSteps)
-      {
+      if (currentStep >= totalSteps) {
         movingStepper = false;
-        currentTheta1 += totalSteps * (digitalRead(DIR_PIN) == HIGH ? 0.9 : -0.9);  // Update theta based on 0.9 degree steps
-
+        currentTheta1 += totalSteps * (digitalRead(DIR_PIN) == HIGH ? 0.9 : -0.9);
         logMessage("INFO", String("[Stepper] Movement Completed, newTheta1: " + String(currentTheta1)).c_str());
-
-        // Process the next command in the queue, if any
-        if (!commandQueue.empty()) {
-          float nextTheta = commandQueue.front();
-          commandQueue.pop();
-          startMoveStepper(nextTheta);
-        }
       }
     }
   }
 }
 
-// WebSocket event handler
-void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
-{
-  switch (type)
-  {
+void updateServoNonBlocking() {
+  if (movingServo && millis() - servoMoveStartTime >= servoMoveDuration) { 
+    movingServo = false;
+    logMessage("INFO", "[Servo] Movement Completed");
+  }
+}
+
+void checkMovementCompletion() {
+  if (!movingStepper && !movingServo && !commandQueue.empty()) {
+    MovementCommand nextCommand = commandQueue.front();
+    commandQueue.pop();
+    startMoveTo(nextCommand.theta1, nextCommand.theta2);
+  }
+}
+
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
+  String message;
+
+  switch (type) {
     case WStype_DISCONNECTED:
       logMessage("ERROR", "Disconnected from server.");
       digitalWrite(LED_PIN, LOW);
@@ -119,57 +123,47 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
       digitalWrite(LED_PIN, HIGH);
       break;
     case WStype_TEXT:
-    {
-      String message = "[WebSocket] Received message: " + String((char *)payload);
+      message = "[WebSocket] Received message: " + String((char *)payload);
       logMessage("INFO", message.c_str());
-      handleReceivedMessage(payload, length);  // Process received command
+      handleReceivedMessage(payload, length);
       break;
-    }
     case WStype_ERROR:
       logMessage("ERROR", "WebSocket Error occurred.");
-      break;
-    default:
       break;
   }
 }
 
-// Function to handle received messages via WebSocket
-void handleReceivedMessage(uint8_t *payload, size_t length)
-{
+void handleReceivedMessage(uint8_t *payload, size_t length) {
   StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, payload);
 
-  if (error)
-  {
+  if (error) {
     logMessage("ERROR", "Failed to deserialize JSON.");
     return;
   }
 
   const char *id = doc["id"];
-  if (strcmp(id, "ARM") == 0)
-  {
+  if (strcmp(id, "ARM") == 0) {
     JsonObject data = doc["data"];
     float theta1 = data["theta1"];
+    float theta2 = data["theta2"];
 
-    // Start stepper movement for theta1 (queue if already moving)
-    startMoveStepper(theta1);
+    startMoveTo(theta1, theta2);
   }
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
 
-  // Initialize pins
   pinMode(STEP_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+  servoTheta2.attach(SERVO_PIN);
 
   logMessage("INFO", "Connecting to WiFi...");
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     logMessage("DEBUG", "Waiting for WiFi connection...");
   }
@@ -181,13 +175,16 @@ void setup()
   webSocket.setReconnectInterval(5000);
 }
 
-void loop()
-{
+void loop() {
   webSocket.loop();
 
-  // Continuously update the stepper movement without blocking
-  if (movingStepper)
-  {
+  if (movingStepper) {
     updateStepperNonBlocking();
   }
+
+  if (movingServo) {
+    updateServoNonBlocking();
+  }
+
+  checkMovementCompletion();
 }
