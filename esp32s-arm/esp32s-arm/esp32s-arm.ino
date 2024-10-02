@@ -22,7 +22,7 @@ Servo penServo;
 
 float currentTheta1 = 0.0;
 float targetTheta1 = 0.0;
-float currentTheta2 = 0.0;
+float currentTheta2 = 180.0;
 bool penState = false;
 int totalSteps = 0;
 int currentStep = 0;
@@ -33,7 +33,7 @@ unsigned long stepInterval = 1000;
 unsigned long servoMoveStartTime = 0;
 unsigned long servoMoveDuration = 0;
 
-const float timePerDegree = 5;
+const float timePerDegree = 3.33;
 
 struct MovementCommand {
   float theta1;
@@ -63,10 +63,12 @@ void startMoveTo(float targetTheta1, float targetTheta2, bool pen) {
     return;
   }
 
+movePen(pen);
+
   digitalWrite(DIR_PIN, targetTheta1 > currentTheta1 ? HIGH : LOW);
   logMessage("INFO", String("[Movement] Starting move to theta1: " + String(targetTheta1) + ", theta2: " + String(targetTheta2)).c_str());
 
-  totalSteps = abs(targetTheta1 - currentTheta1) / 0.9;
+  totalSteps = abs(targetTheta1 - currentTheta1) / 1.8;
   currentStep = 0;
   movingStepper = totalSteps > 0;
   lastStepTime = micros();
@@ -79,7 +81,7 @@ void startMoveTo(float targetTheta1, float targetTheta2, bool pen) {
   logMessage("INFO", String("[Servo] Moving to theta2: " + String(currentTheta2) + " over " + String(servoMoveDuration) + " ms").c_str());
   servoMoveStartTime = millis();
 
-  movePen(pen);
+
 }
 
 void updateStepperNonBlocking() {
@@ -96,7 +98,7 @@ void updateStepperNonBlocking() {
 
       if (currentStep >= totalSteps) {
         movingStepper = false;
-        currentTheta1 += totalSteps * (digitalRead(DIR_PIN) == HIGH ? 0.9 : -0.9);
+        currentTheta1 += totalSteps * (digitalRead(DIR_PIN) == HIGH ? 1.8 : -1.8);
         logMessage("INFO", String("[Stepper] Movement Completed, newTheta1: " + String(currentTheta1)).c_str());
       }
     }
@@ -114,6 +116,7 @@ void checkMovementCompletion() {
   if (!movingStepper && !movingServo && !commandQueue.empty()) {
     MovementCommand nextCommand = commandQueue.front();
     commandQueue.pop();
+    logMessage("INFO", "[Movement] All Movements Completed");
     startMoveTo(nextCommand.theta1, nextCommand.theta2, nextCommand.pen);
   }
 }

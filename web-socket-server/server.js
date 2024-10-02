@@ -1,6 +1,9 @@
 const WebSocket = require("ws");
 const wss = new WebSocket.Server({ port: 8080 });
 
+let lastTheta1 = 0;
+let lastTheta2 = 0;
+
 const l1x = 7;
 const l1y = 1;
 
@@ -107,6 +110,9 @@ wss.on("connection", (ws) => {
               `Coordinates: (${x}, ${y}) => Angles: ${angles.theta1}, ${angles.theta2}`
             );
 
+            lastTheta1 = angles.theta1;
+            lastTheta2 = angles.theta2;
+
             // Send the calculated angles to ARM
             if (
               connections.arm &&
@@ -155,6 +161,8 @@ wss.on("connection", (ws) => {
             "ARM",
             "Pen up",
             {
+              theta1: lastTheta1,
+              theta2: lastTheta2,
               pen: false, // Lift the pen after the drawing
             },
             true
