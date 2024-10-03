@@ -28,7 +28,7 @@ Servo penServo;               // Servo for pen control
 // Variables for managing movement states and commands
 float currentTheta1 = 0.0;          // Current position of stepper motor
 float targetTheta1 = 0.0;           // Target position for stepper motor
-float currentTheta2 = 180.0;        // Current position of servo
+float currentTheta2 = 0.0;        // Current position of servo
 bool penState = false;              // Current state of the pen (up or down)
 int totalSteps = 0;                 // Total steps required for stepper motor to reach target
 int currentStep = 0;                // Current step progress
