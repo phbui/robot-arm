@@ -14,7 +14,7 @@ Hosting Website:
 - Run "npm i" to install packages.
 - Run "npm run dev" to run the web server.
 
-Connecting to ESP-32S
+Connecting to ESP-32S:
 
 - Edit "Wifi Credientials in esp32s-arm.ino for whatever network you want.
 - Connect to that same network as a private network.
