@@ -16,7 +16,7 @@ Hosting Website:
 
 Connecting to ESP-32S:
 
-- Edit "Wifi Credientials in esp32s-arm.ino for whatever network you want.
+- Edit "Wifi Credientials" section in esp32s-arm.ino for whatever network you want.
 - Connect to that same network as a private network.
 - Host the Web Socket Server on that Network.
 - The light on the ESP-32S will turn blue if connected to the Web Socket Server.
